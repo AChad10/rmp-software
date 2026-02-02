@@ -1,5 +1,5 @@
-payroll
+
 slack-botrmp/.env
 slack-botrmp/node_modules
 slack-botrmp/dist
-
+*/.gitignore
