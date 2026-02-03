@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Salary Statement - {{MONTH}}</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: 'Arial', sans-serif;
+      padding: 40px;
+      background: #f5f5f5;
+    }
+
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: white;
+      padding: 40px;
+      border-radius: 8px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 40px;
+      border-bottom: 3px solid #e60000;
+      padding-bottom: 20px;
+    }
+
+    .company-name {
+      font-size: 32px;
+      font-weight: bold;
+      color: #e60000;
+      margin-bottom: 5px;
+    }
+
+    .company-subtitle {
+      font-size: 14px;
+      color: #666;
+      margin-bottom: 15px;
+    }
+
+    .document-title {
+      font-size: 18px;
+      color: #333;
+      margin-top: 15px;
+      font-weight: 600;
+    }
+
+    .info-section {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 30px;
+      padding: 15px;
+      background: #f9f9f9;
+      border-radius: 5px;
+    }
+
+    .info-item {
+      flex: 1;
+    }
+
+    .info-label {
+      font-size: 12px;
+      color: #666;
+      text-transform: uppercase;
+      margin-bottom: 5px;
+    }
+
+    .info-value {
+      font-size: 16px;
+      color: #333;
+      font-weight: 600;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+
+    thead {
+      background: #e60000;
+      color: white;
+    }
+
+    th {
+      padding: 12px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    td {
+      padding: 12px;
+      border-bottom: 1px solid #eee;
+      font-size: 14px;
+    }
+
+    tr:hover {
+      background: #f9f9f9;
+    }
+
+    .description {
+      font-weight: 500;
+      color: #333;
+    }
+
+    .amount {
+      text-align: right;
+      font-weight: 600;
+      color: #333;
+    }
+
+    .note {
+      font-size: 12px;
+      color: #999;
+      font-style: italic;
+    }
+
+    .total-row {
+      background: #f0f0f0;
+      font-weight: bold;
+      font-size: 16px;
+    }
+
+    .total-row td {
+      border-bottom: 3px solid #e60000;
+      padding: 15px 12px;
+    }
+
+    .total-amount {
+      color: #e60000;
+      font-size: 18px;
+    }
+
+    .bsc-section {
+      margin: 20px 0;
+      padding: 15px;
+      background: #fff9e6;
+      border-left: 4px solid #ffcc00;
+      border-radius: 4px;
+    }
+
+    .bsc-title {
+      font-weight: 600;
+      color: #333;
+      margin-bottom: 8px;
+      font-size: 14px;
+    }
+
+    .bsc-details {
+      font-size: 13px;
+      color: #666;
+      line-height: 1.6;
+    }
+
+    .footer {
+      margin-top: 40px;
+      padding-top: 20px;
+      border-top: 1px solid #eee;
+      text-align: center;
+      font-size: 12px;
+      color: #999;
+    }
+
+    .footer-note {
+      margin-top: 10px;
+      font-style: italic;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Header -->
+    <div class="header">
+      <div class="company-name">🔴 Red Mat Pilates</div>
+      <div class="company-subtitle">Fitness & Wellness</div>
+      <div class="document-title">SALARY STATEMENT</div>
+    </div>
+
+    <!-- Employee Info -->
+    <div class="info-section">
+      <div class="info-item">
+        <div class="info-label">Trainer Name</div>
+        <div class="info-value">{{TRAINER_NAME}}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Member ID</div>
+        <div class="info-value">{{MEMBER_ID}}</div>
+      </div>
+      <div class="info-item">
+        <div class="info-label">Period</div>
+        <div class="info-value">{{MONTH_NAME}} {{YEAR}}</div>
+      </div>
+    </div>
+
+    <!-- BSC Info (if applicable) -->
+    {{BSC_SECTION}}
+
+    <!-- Salary Breakdown Table -->
+    <table>
+      <thead>
+        <tr>
+          <th>Description</th>
+          <th style="text-align: right;">Amount (₹)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td class="description">Base Salary</td>
+          <td class="amount">₹{{BASE_SALARY}}</td>
+        </tr>
+        <tr>
+          <td class="description">
+            Quarterly Performance Bonus
+            {{BONUS_NOTE}}
+          </td>
+          <td class="amount">₹{{CALCULATED_BONUS}}</td>
+        </tr>
+        <tr class="total-row">
+          <td class="description">TOTAL SALARY</td>
+          <td class="amount total-amount">₹{{TOTAL_SALARY}}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- Footer -->
+    <div class="footer">
+      <div>Generated on {{GENERATED_DATE}}</div>
+      <div class="footer-note">This is a computer-generated document and does not require a signature.</div>
+      <div style="margin-top: 15px; color: #e60000; font-weight: 600;">Red Mat Pilates</div>
+    </div>
+  </div>
+</body>
+</html>

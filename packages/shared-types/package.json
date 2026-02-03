@@ -1,0 +1,21 @@
+{
+  "name": "@rmp/shared-types",
+  "version": "1.0.0",
+  "description": "Shared TypeScript interfaces and types for RMP Payroll System",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc -w"
+  },
+  "keywords": [
+    "typescript",
+    "types",
+    "shared"
+  ],
+  "author": "Red Mat Pilates",
+  "license": "ISC",
+  "devDependencies": {
+    "typescript": "^5.3.0"
+  }
+}
