@@ -3,6 +3,11 @@ import { Trainer } from '../models';
 import { AuditLog } from '../models';
 import { CreateTrainerRequest, UpdateTrainerRequest, ApiResponse } from '@rmp/shared-types';
 
+// Escape special regex characters to prevent ReDoS
+function escapeRegex(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
 // Get all trainers
 export async function getAllTrainers(req: Request, res: Response): Promise<void> {
   try {
@@ -11,14 +16,20 @@ export async function getAllTrainers(req: Request, res: Response): Promise<void>
     const filter: any = {};
 
     if (status && typeof status === 'string') {
+      const validStatuses = ['active', 'inactive', 'on_leave'];
+      if (!validStatuses.includes(status)) {
+        res.status(400).json({ success: false, error: 'Invalid status filter' });
+        return;
+      }
       filter.status = status;
     }
 
     if (search && typeof search === 'string') {
+      const safeSearch = escapeRegex(search.slice(0, 100)); // limit length + escape
       filter.$or = [
-        { name: { $regex: search, $options: 'i' } },
-        { email: { $regex: search, $options: 'i' } },
-        { memberId: { $regex: search, $options: 'i' } }
+        { name: { $regex: safeSearch, $options: 'i' } },
+        { email: { $regex: safeSearch, $options: 'i' } },
+        { employeeCode: { $regex: safeSearch, $options: 'i' } }
       ];
     }
 
@@ -33,7 +44,7 @@ export async function getAllTrainers(req: Request, res: Response): Promise<void>
     res.status(500).json({
       success: false,
       error: 'Failed to fetch trainers',
-      message: error.message
+      ...(process.env.NODE_ENV === 'development' && { message: error.message })
     } as ApiResponse);
   }
 }
@@ -62,7 +73,7 @@ export async function getTrainerById(req: Request, res: Response): Promise<void>
     res.status(500).json({
       success: false,
       error: 'Failed to fetch trainer',
-      message: error.message
+      ...(process.env.NODE_ENV === 'development' && { message: error.message })
     } as ApiResponse);
   }
 }
@@ -91,7 +102,91 @@ export async function getTrainerByUserId(req: Request, res: Response): Promise<v
     res.status(500).json({
       success: false,
       error: 'Failed to fetch trainer',
-      message: error.message
+      ...(process.env.NODE_ENV === 'development' && { message: error.message })
+    } as ApiResponse);
+  }
+}
+
+// Get trainer by BSC access token (for secure BSC form access)
+export async function getTrainerByBscToken(req: Request, res: Response): Promise<void> {
+  try {
+    const { token } = req.params;
+
+    if (!token || token.length !== 64) {
+      res.status(400).json({
+        success: false,
+        error: 'Invalid access token'
+      } as ApiResponse);
+      return;
+    }
+
+    const trainer = await Trainer.findOne({ bscAccessToken: token, status: 'active' });
+
+    if (!trainer) {
+      res.status(404).json({
+        success: false,
+        error: 'Invalid or expired access token'
+      } as ApiResponse);
+      return;
+    }
+
+    // Return trainer data without sensitive fields
+    const safeTrainerData = {
+      _id: trainer._id,
+      name: trainer.name,
+      email: trainer.email,
+      team: trainer.team,
+      useDefaultScorecard: trainer.useDefaultScorecard,
+      scorecardTemplate: trainer.scorecardTemplate,
+      quarterlyBonusAmount: trainer.quarterlyBonusAmount,
+    };
+
+    res.json({
+      success: true,
+      data: safeTrainerData
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error fetching trainer by BSC token:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to fetch trainer',
+      ...(process.env.NODE_ENV === 'development' && { message: error.message })
+    } as ApiResponse);
+  }
+}
+
+// Regenerate BSC access token for a trainer
+export async function regenerateBscToken(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const crypto = require('crypto');
+
+    const trainer = await Trainer.findById(id);
+
+    if (!trainer) {
+      res.status(404).json({
+        success: false,
+        error: 'Trainer not found'
+      } as ApiResponse);
+      return;
+    }
+
+    // Generate new token
+    const newToken = crypto.randomBytes(32).toString('hex');
+    trainer.bscAccessToken = newToken;
+    await trainer.save();
+
+    res.json({
+      success: true,
+      data: { bscAccessToken: newToken },
+      message: 'BSC access token regenerated successfully'
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error regenerating BSC token:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to regenerate token',
+      ...(process.env.NODE_ENV === 'development' && { message: error.message })
     } as ApiResponse);
   }
 }
@@ -106,20 +201,25 @@ export async function createTrainer(req: Request, res: Response): Promise<void> 
       $or: [
         { userId: trainerData.userId },
         { email: trainerData.email },
-        { memberId: trainerData.memberId }
+        { employeeCode: trainerData.employeeCode }
       ]
     });
 
     if (existingTrainer) {
       res.status(409).json({
         success: false,
-        error: 'Trainer already exists with this userId, email, or memberId'
+        error: 'Trainer already exists with this userId, email, or employee code'
       } as ApiResponse);
       return;
     }
 
+    // Remove empty string values so Mongoose defaults apply
+    const cleanedData = Object.fromEntries(
+      Object.entries(trainerData).filter(([, v]) => v !== '')
+    );
+
     const trainer = new Trainer({
-      ...trainerData,
+      ...cleanedData,
       status: 'active',
       createdBy: req.user?.userId
     });
@@ -147,7 +247,7 @@ export async function createTrainer(req: Request, res: Response): Promise<void> 
     res.status(500).json({
       success: false,
       error: 'Failed to create trainer',
-      message: error.message
+      ...(process.env.NODE_ENV === 'development' && { message: error.message })
     } as ApiResponse);
   }
 }
@@ -179,7 +279,7 @@ export async function updateTrainer(req: Request, res: Response): Promise<void> 
       updatedBy: req.user?.userId
     });
 
-    await trainer.save();
+    await trainer.save({ validateModifiedOnly: true });
 
     // Create audit log
     await AuditLog.create({
@@ -205,7 +305,7 @@ export async function updateTrainer(req: Request, res: Response): Promise<void> 
     res.status(500).json({
       success: false,
       error: 'Failed to update trainer',
-      message: error.message
+      ...(process.env.NODE_ENV === 'development' && { message: error.message })
     } as ApiResponse);
   }
 }
@@ -215,7 +315,11 @@ export async function deleteTrainer(req: Request, res: Response): Promise<void> 
   try {
     const { id } = req.params;
 
-    const trainer = await Trainer.findById(id);
+    const trainer = await Trainer.findByIdAndUpdate(
+      id,
+      { status: 'inactive', updatedBy: req.user?.userId },
+      { new: true, runValidators: false }
+    );
 
     if (!trainer) {
       res.status(404).json({
@@ -224,10 +328,6 @@ export async function deleteTrainer(req: Request, res: Response): Promise<void> 
       } as ApiResponse);
       return;
     }
-
-    trainer.status = 'inactive';
-    trainer.updatedBy = req.user?.userId;
-    await trainer.save();
 
     // Create audit log
     await AuditLog.create({
@@ -249,7 +349,7 @@ export async function deleteTrainer(req: Request, res: Response): Promise<void> 
     res.status(500).json({
       success: false,
       error: 'Failed to delete trainer',
-      message: error.message
+      ...(process.env.NODE_ENV === 'development' && { message: error.message })
     } as ApiResponse);
   }
 }

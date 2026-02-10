@@ -2,30 +2,44 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { bscService } from '../api/bscService';
 import { getCurrentQuarter, formatQuarterDisplay, getQuarterMonths, getQuarterNumber } from '../utils/quarterUtils';
-import type { ITrainer, IBSCScore } from '@rmp/shared-types';
+import type { ITrainer, IBSCScore, IScorecardMetric } from '@rmp/shared-types';
+import { DEFAULT_TRAINER_SCORECARD } from '@rmp/shared-types';
 import './BSCForm.css';
 
 export default function BSCForm() {
-  const { trainerId, quarter } = useParams<{ trainerId: string; quarter?: string }>();
+  const { token, quarter } = useParams<{ token: string; quarter?: string }>();
   const navigate = useNavigate();
 
   const [trainer, setTrainer] = useState<ITrainer | null>(null);
+  const [trainerId, setTrainerId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<Record<string, string>>({});
+  const [attemptedSubmit, setAttemptedSubmit] = useState(false);
 
-  // Form state
-  const [scores, setScores] = useState<Record<string, number>>({});
+  // Form state - track percentage (0-100) and notes per metric
+  const [formData, setFormData] = useState<Record<string, { percentage: number; notes: string }>>({});
   const currentQuarter = quarter || getCurrentQuarter();
 
   useEffect(() => {
     loadTrainerData();
-  }, [trainerId]);
+  }, [token]);
+
+  // Get the effective scorecard (default or custom based on flag)
+  const getEffectiveScorecard = (trainerData: ITrainer): IScorecardMetric[] => {
+    if (trainerData.useDefaultScorecard) {
+      return DEFAULT_TRAINER_SCORECARD;
+    }
+    return trainerData.scorecardTemplate.length > 0
+      ? trainerData.scorecardTemplate
+      : DEFAULT_TRAINER_SCORECARD; // Fallback if no custom template
+  };
 
   const loadTrainerData = async () => {
-    if (!trainerId) {
-      setError('Trainer ID is required');
+    if (!token) {
+      setError('Access token is required');
       setLoading(false);
       return;
     }
@@ -34,25 +48,31 @@ export default function BSCForm() {
       setLoading(true);
       setError(null);
 
-      // Fetch trainer details
-      const trainerData = await bscService.getTrainer(trainerId);
+      // Fetch trainer details using secure token
+      const trainerData = await bscService.getTrainerByToken(token);
       setTrainer(trainerData);
+      setTrainerId(trainerData._id || null);
 
-      // Initialize scores to middle value (5)
-      const initialScores: Record<string, number> = {};
-      trainerData.scorecardTemplate.forEach((metric) => {
-        initialScores[metric.metricName] = 5;
+      // Get the effective scorecard based on useDefaultScorecard flag
+      const effectiveScorecard = getEffectiveScorecard(trainerData);
+
+      // Initialize form data with 50% (middle value) and empty notes
+      const initialFormData: Record<string, { percentage: number; notes: string }> = {};
+      effectiveScorecard.forEach((metric) => {
+        initialFormData[metric.metricName] = { percentage: 50, notes: '' };
       });
-      setScores(initialScores);
+      setFormData(initialFormData);
 
-      // Check if already submitted
-      const existing = await bscService.checkExistingSubmission(trainerId, currentQuarter);
-      if (existing && existing.status !== 'rejected') {
-        setAlreadySubmitted(true);
+      // Check if already submitted (using trainer ID from token response)
+      if (trainerData._id && token) {
+        const existing = await bscService.checkExistingSubmission(trainerData._id, currentQuarter, token);
+        if (existing && existing.status !== 'rejected') {
+          setAlreadySubmitted(true);
+        }
       }
     } catch (err: any) {
       console.error('Error loading trainer:', err);
-      setError(err.message || 'Failed to load trainer data');
+      setError(err.message || 'Invalid or expired access link. Please contact your manager.');
     } finally {
       setLoading(false);
     }
@@ -61,10 +81,11 @@ export default function BSCForm() {
   const calculateWeightedScore = (): number => {
     if (!trainer) return 0;
 
+    const effectiveScorecard = getEffectiveScorecard(trainer);
     let totalWeightedScore = 0;
-    trainer.scorecardTemplate.forEach((metric) => {
-      const score = scores[metric.metricName] || 0;
-      const normalizedScore = score / metric.maxScore; // Convert to 0-1
+    effectiveScorecard.forEach((metric) => {
+      const percentage = formData[metric.metricName]?.percentage || 0;
+      const normalizedScore = percentage / 100; // Convert percentage to 0-1
       totalWeightedScore += normalizedScore * metric.weight;
     });
 
@@ -72,40 +93,100 @@ export default function BSCForm() {
     return (totalWeightedScore / 100) * 10;
   };
 
-  const handleScoreChange = (metricName: string, value: number) => {
-    setScores((prev) => ({
+  const handlePercentageChange = (metricName: string, value: number) => {
+    // Clamp value between 0 and 100
+    const clampedValue = Math.max(0, Math.min(100, value));
+    setFormData((prev) => ({
       ...prev,
-      [metricName]: value,
+      [metricName]: {
+        ...prev[metricName],
+        percentage: clampedValue,
+      },
     }));
+  };
+
+  const handleNotesChange = (metricName: string, value: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      [metricName]: {
+        ...prev[metricName],
+        notes: value,
+      },
+    }));
+
+    // Clear validation error when user starts typing
+    if (value.trim() && validationErrors[metricName]) {
+      setValidationErrors((prev) => {
+        const { [metricName]: _, ...rest } = prev;
+        return rest;
+      });
+    }
+  };
+
+  const validateForm = (): boolean => {
+    if (!trainer) return false;
+
+    const effectiveScorecard = getEffectiveScorecard(trainer);
+    const errors: Record<string, string> = {};
+
+    effectiveScorecard.forEach((metric) => {
+      const notes = formData[metric.metricName]?.notes || '';
+      if (!notes.trim()) {
+        errors[metric.metricName] = 'Supporting data is required for this metric';
+      }
+    });
+
+    setValidationErrors(errors);
+    return Object.keys(errors).length === 0;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setAttemptedSubmit(true);
 
     if (!trainer || !trainerId) return;
+
+    // Validate form
+    if (!validateForm()) {
+      setError('Please fill in all required fields before submitting');
+      // Scroll to first error
+      setTimeout(() => {
+        const firstError = document.querySelector('.metric-card.has-error');
+        if (firstError) {
+          firstError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+      }, 100);
+      return;
+    }
 
     try {
       setSubmitting(true);
       setError(null);
 
-      // Prepare BSC scores
-      const selfScores: IBSCScore[] = trainer.scorecardTemplate.map((metric) => ({
-        metricName: metric.metricName,
-        score: scores[metric.metricName] || 0,
-      }));
+      // Get the effective scorecard and prepare BSC scores
+      const effectiveScorecard = getEffectiveScorecard(trainer);
+      const selfScores: IBSCScore[] = effectiveScorecard.map((metric) => {
+        const notes = formData[metric.metricName]?.notes?.trim();
+        return {
+          metricName: metric.metricName,
+          score: (formData[metric.metricName]?.percentage || 50) / 10, // Convert percentage to 0-10 scale
+          ...(notes && { notes }), // Only include notes if it has content
+        };
+      });
 
-      // Submit BSC
+      // Submit BSC (include access token to prove identity)
       await bscService.submitBSC({
         trainerId,
         quarter: currentQuarter,
         selfScores,
-      });
+      }, token!);
 
       // Navigate to success page
       navigate(`/success?quarter=${currentQuarter}`);
     } catch (err: any) {
       console.error('Error submitting BSC:', err);
-      setError(err.message || 'Failed to submit assessment');
+      setError(err.message || 'Failed to submit assessment. Please check your input and try again.');
+      window.scrollTo({ top: 0, behavior: 'smooth' });
     } finally {
       setSubmitting(false);
     }
@@ -126,7 +207,7 @@ export default function BSCForm() {
     return (
       <div className="container">
         <div className="error-box">
-          <h2>⚠️ Error</h2>
+          <h2>Error</h2>
           <p>{error}</p>
           <button onClick={() => window.location.reload()}>Try Again</button>
         </div>
@@ -149,7 +230,7 @@ export default function BSCForm() {
     return (
       <div className="container">
         <div className="info-box">
-          <h2>✅ Already Submitted</h2>
+          <h2>Already Submitted</h2>
           <p>You have already submitted your self-assessment for {formatQuarterDisplay(currentQuarter)}.</p>
           <p>Your manager will review it shortly. You'll be notified once it's validated.</p>
         </div>
@@ -178,66 +259,83 @@ export default function BSCForm() {
 
         {/* Power BI Dashboard Section */}
         <section className="powerbi-section">
-          <h2>📊 Your Performance Metrics</h2>
+          <h2>Your Performance Metrics</h2>
           <p className="section-description">
             Review your performance data below before completing your self-assessment.
           </p>
           <div className="powerbi-container">
-            {/* Attempt to embed Power BI - will need actual URL */}
-            <div className="powerbi-placeholder">
-              <p>📈 Performance Dashboard</p>
-              <p className="placeholder-note">
-                Power BI dashboard will be embedded here.<br />
-                Contact your administrator for the dashboard link.
-              </p>
-              {/* Uncomment when Power BI URL is available */}
-              {/* <iframe
-                src={`YOUR_POWER_BI_URL?filter=trainer eq '${trainerId}'`}
-                width="100%"
-                height="400"
-                frameBorder="0"
-                title="Performance Dashboard"
-              ></iframe> */}
-            </div>
+            <iframe
+              src="https://app.powerbi.com/reportEmbed?reportId=a2c33127-d64c-4040-a492-f7b0943ac02d&autoAuth=true&ctid=ce5b6e47-737b-4010-a385-7ac87f2fbeab"
+              width="100%"
+              height="400"
+              frameBorder="0"
+              allowFullScreen
+              title="Performance Dashboard"
+            ></iframe>
           </div>
         </section>
 
         {/* Assessment Form */}
         <form onSubmit={handleSubmit}>
           <section className="metrics-section">
-            <h2>📝 Rate Your Performance</h2>
+            <h2>Rate Your Performance</h2>
             <p className="section-description">
-              For each metric below, rate yourself on a scale from 0 to 10.
+              For each metric below, rate yourself on a scale from 0 to 100.
             </p>
 
-            {trainer.scorecardTemplate.map((metric) => (
-              <div key={metric.metricName} className="metric-card">
-                <div className="metric-header">
-                  <h3>{metric.metricName}</h3>
-                  <span className="weight-badge">{metric.weight}%</span>
-                </div>
-                <p className="metric-description">{metric.description}</p>
+            {getEffectiveScorecard(trainer).map((metric) => {
+              const metricData = formData[metric.metricName] || { percentage: 50, notes: '' };
+              const calculatedScore = metricData.percentage / 10;
+              const hasError = !!validationErrors[metric.metricName];
 
-                <div className="slider-container">
-                  <div className="slider-labels">
-                    <span>{metric.minScore}</span>
-                    <span className="current-score">
-                      Score: {scores[metric.metricName] || metric.minScore}
-                    </span>
-                    <span>{metric.maxScore}</span>
+              return (
+                <div key={metric.metricName} className={`metric-card ${hasError ? 'has-error' : ''}`}>
+                  <div className="metric-header">
+                    <h3>{metric.metricName}</h3>
+                    <span className="weight-badge">{metric.weight}%</span>
                   </div>
-                  <input
-                    type="range"
-                    min={metric.minScore}
-                    max={metric.maxScore}
-                    step="1"
-                    value={scores[metric.metricName] || metric.minScore}
-                    onChange={(e) => handleScoreChange(metric.metricName, parseInt(e.target.value))}
-                    className="slider"
-                  />
+                  <p className="metric-description">{metric.description}</p>
+
+                  <div className="scoring-container">
+                    <div className="scoring-row">
+                      <div className="percentage-input-wrapper">
+                        <input
+                          type="number"
+                          min="0"
+                          max="100"
+                          step="any"
+                          value={metricData.percentage}
+                          onChange={(e) => handlePercentageChange(metric.metricName, parseFloat(e.target.value) || 0)}
+                          className="percentage-input"
+                        />
+                        <span className="percentage-symbol">%</span>
+                      </div>
+                      <div className="score-display">
+                        <span className="score-display-value">{calculatedScore.toFixed(1)}</span>
+                        <span className="score-display-max">/ 10</span>
+                      </div>
+                    </div>
+
+                    <label className="notes-label">
+                      Supporting data for this score
+                      <span className="required">*</span>
+                    </label>
+                    <textarea
+                      className={`notes-textarea ${hasError ? 'error' : ''}`}
+                      placeholder="Enter supporting data, context, or achievements relevant to this metric..."
+                      value={metricData.notes}
+                      onChange={(e) => handleNotesChange(metric.metricName, e.target.value)}
+                      required
+                    />
+                    {hasError && (
+                      <div className="field-error">
+                        ⚠ {validationErrors[metric.metricName]}
+                      </div>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </section>
 
           {/* Weighted Score Display */}
@@ -259,12 +357,23 @@ export default function BSCForm() {
 
           {/* Submit Button */}
           <div className="form-actions">
+            {attemptedSubmit && Object.keys(validationErrors).length > 0 && (
+              <div className="validation-summary">
+                <span>⚠</span>
+                <div>
+                  <strong>Please complete all required fields</strong>
+                  <p style={{ margin: '4px 0 0', fontSize: '13px' }}>
+                    All metrics require supporting data to be submitted.
+                  </p>
+                </div>
+              </div>
+            )}
             <button
               type="submit"
               disabled={submitting}
               className="submit-button"
             >
-              {submitting ? 'Submitting...' : 'Submit Assessment'}
+              {submitting ? 'Submitting Assessment...' : 'Submit Assessment'}
             </button>
           </div>
         </form>

@@ -10,46 +10,54 @@ export function setSlackApp(app: App): void {
 }
 
 /**
- * Get current quarter in YYYY-Q# format
+ * Get the BSC quarter to check based on the current reminder month.
+ * Reminders are sent on the 15th of:
+ *   February  → check OND (Q4 of previous year)
+ *   May       → check JFM (Q1 of current year)
+ *   August    → check AMJ (Q2 of current year)
+ *   November  → check JAS (Q3 of current year)
  */
-function getCurrentQuarter(): { quarter: string; year: number; quarterNumber: 1 | 2 | 3 | 4 } {
+function getReminderQuarter(): { quarter: string; label: string } | null {
   const now = new Date();
   const year = now.getFullYear();
   const month = now.getMonth() + 1;
 
-  let quarterNumber: 1 | 2 | 3 | 4;
-  if (month >= 1 && month <= 3) quarterNumber = 1;
-  else if (month >= 4 && month <= 6) quarterNumber = 2;
-  else if (month >= 7 && month <= 9) quarterNumber = 3;
-  else quarterNumber = 4;
-
-  return {
-    quarter: `${year}-Q${quarterNumber}`,
-    year,
-    quarterNumber
-  };
+  switch (month) {
+    case 2:  return { quarter: `${year - 1}-Q4`, label: 'OND' };
+    case 5:  return { quarter: `${year}-Q1`, label: 'JFM' };
+    case 8:  return { quarter: `${year}-Q2`, label: 'AMJ' };
+    case 11: return { quarter: `${year}-Q3`, label: 'JAS' };
+    default: return null;
+  }
 }
 
 /**
  * Automated BSC reminder job
- * Runs on the last day of each quarter (31st of Mar, Jun, Sep, Dec) at 8:00 AM
+ * Runs on the 15th of Feb, May, Aug, Nov at 8:00 AM
+ * If a trainer hasn't submitted their BSC by this date, they get a reminder.
+ * Bonus payout schedule: OND→March, JFM→June, AMJ→Sept, JAS→Dec
  */
 export function initializeBSCRemindersCron(): void {
-  // Cron schedule: '0 8 31 3,6,9,12 *' = At 8:00 AM on 31st of Mar, Jun, Sep, Dec
-  // For testing: '*/5 * * * *' = Every 5 minutes
-  const schedule = process.env.BSC_CRON_SCHEDULE || '0 8 31 3,6,9,12 *';
+  // Cron schedule: '0 8 15 2,5,8,11 *' = At 8:00 AM on 15th of Feb, May, Aug, Nov
+  const schedule = process.env.BSC_CRON_SCHEDULE || '0 8 15 2,5,8,11 *';
 
-  console.log(`📅 BSC reminders cron scheduled: ${schedule}`);
+  console.log(`[CRON] BSC reminders cron scheduled: ${schedule}`);
 
   cron.schedule(schedule, async () => {
+    const reminderQuarter = getReminderQuarter();
+    if (!reminderQuarter) {
+      console.log('[CRON] BSC REMINDER - Not a reminder month, skipping');
+      return;
+    }
+
+    const { quarter, label } = reminderQuarter;
+
     console.log('\n' + '='.repeat(70));
-    console.log('🎯 BSC REMINDER - End of Quarter');
+    console.log(`[CRON] BSC REMINDER - ${label} (${quarter})`);
     console.log(`   Started: ${new Date().toISOString()}`);
     console.log('='.repeat(70) + '\n');
 
     try {
-      const { quarter } = getCurrentQuarter();
-
       // Get all active trainers
       const trainers = await Trainer.find({ status: 'active' });
 
@@ -65,38 +73,37 @@ export function initializeBSCRemindersCron(): void {
           });
 
           if (existingBSC) {
-            console.log(`⏭️  ${trainer.name} - BSC already submitted (${existingBSC.status})`);
+            console.log(`[SKIP] ${trainer.name} - BSC already submitted (${existingBSC.status})`);
             continue;
           }
 
-          // Check if trainer has scorecard template configured
-          if (!trainer.scorecardTemplate || trainer.scorecardTemplate.length === 0) {
-            console.log(`⚠️  ${trainer.name} - No scorecard template configured`);
+          // Skip non-trainers with no scorecard at all
+          if (!trainer.useDefaultScorecard && (!trainer.scorecardTemplate || trainer.scorecardTemplate.length === 0)) {
+            console.log(`[WARN] ${trainer.name} - No scorecard template configured`);
             continue;
           }
 
           // Send Slack DM reminder
           if (slackApp && trainer.userId) {
             const bscFormUrl = process.env.BSC_FORM_URL || 'https://bsc.redmatpilates.com';
-            const formLink = `${bscFormUrl}/${trainer._id}/${quarter}`;
+            const formLink = `${bscFormUrl}/form/${trainer.bscAccessToken}/${quarter}`;
 
             await slackApp.client.chat.postMessage({
               channel: trainer.userId,
-              text: `🎯 BSC Submission Reminder - ${quarter}`,
+              text: `BSC Submission Reminder - ${label} (${quarter})`,
               blocks: [
                 {
                   type: 'header',
                   text: {
                     type: 'plain_text',
-                    text: '🎯 Quarterly BSC Submission',
-                    emoji: true
+                    text: `BSC Submission Reminder - ${label}`,
                   }
                 },
                 {
                   type: 'section',
                   text: {
                     type: 'mrkdwn',
-                    text: `Hi *${trainer.name}*,\n\nToday is the last day of *${quarter}*. Please submit your Balanced Score Card (BSC) self-assessment.`
+                    text: `Hi *${trainer.name}*,\n\nYour Balanced Score Card (BSC) self-assessment for *${label}* (${quarter}) has not been submitted yet. Please complete it as soon as possible to ensure your quarterly bonus is processed on time.`
                   }
                 },
                 {
@@ -113,7 +120,7 @@ export function initializeBSCRemindersCron(): void {
                   type: 'section',
                   text: {
                     type: 'mrkdwn',
-                    text: '📝 *Steps to complete:*\n1. Click the button below\n2. Review your Power BI metrics\n3. Rate yourself on each criterion\n4. Submit for admin validation'
+                    text: '*Steps to complete:*\n1. Click the button below\n2. Review your Power BI metrics\n3. Rate yourself on each criterion\n4. Submit for admin validation'
                   }
                 },
                 {
@@ -123,8 +130,7 @@ export function initializeBSCRemindersCron(): void {
                       type: 'button',
                       text: {
                         type: 'plain_text',
-                        text: '📊 Submit BSC Now',
-                        emoji: true
+                        text: 'Submit BSC Now',
                       },
                       url: formLink,
                       style: 'primary'
@@ -136,38 +142,39 @@ export function initializeBSCRemindersCron(): void {
                   elements: [
                     {
                       type: 'mrkdwn',
-                      text: '💡 Need help? Contact your supervisor or HR.'
+                      text: 'Need help? Contact your supervisor or HR.'
                     }
                   ]
                 }
               ]
             });
 
-            console.log(`✅ Reminder sent to ${trainer.name}`);
+            console.log(`[OK] Reminder sent to ${trainer.name}`);
             remindersSent++;
           } else {
-            console.log(`⚠️  ${trainer.name} - No Slack user ID or Slack app not configured`);
+            console.log(`[WARN] ${trainer.name} - No Slack user ID or Slack app not configured`);
           }
 
         } catch (error: any) {
-          console.error(`❌ Error sending reminder to ${trainer.name}:`, error.message);
+          console.error(`[ERROR] Error sending reminder to ${trainer.name}:`, error.message);
           errors++;
         }
       }
 
       console.log('\n' + '='.repeat(70));
-      console.log('📊 SUMMARY');
+      console.log('[SUMMARY]');
       console.log('='.repeat(70));
-      console.log(`✅ Reminders Sent: ${remindersSent}`);
-      console.log(`❌ Errors: ${errors}`);
-      console.log(`⏭️  Already Submitted: ${trainers.length - remindersSent - errors}`);
-      console.log(`📅 Completed: ${new Date().toISOString()}`);
+      console.log(`Quarter: ${label} (${quarter})`);
+      console.log(`Reminders Sent: ${remindersSent}`);
+      console.log(`Errors: ${errors}`);
+      console.log(`Already Submitted: ${trainers.length - remindersSent - errors}`);
+      console.log(`Completed: ${new Date().toISOString()}`);
       console.log('='.repeat(70) + '\n');
 
     } catch (error) {
-      console.error('\n💥 CRITICAL ERROR in BSC reminders cron:', error);
+      console.error('\n[FATAL] CRITICAL ERROR in BSC reminders cron:', error);
     }
   });
 
-  console.log('✅ BSC reminders cron job initialized\n');
+  console.log('[OK] BSC reminders cron job initialized\n');
 }

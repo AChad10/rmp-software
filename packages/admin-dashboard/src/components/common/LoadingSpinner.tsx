@@ -1,25 +1,27 @@
 interface LoadingSpinnerProps {
   size?: 'sm' | 'md' | 'lg';
   fullPage?: boolean;
+  text?: string;
 }
 
-export function LoadingSpinner({ size = 'md', fullPage = false }: LoadingSpinnerProps) {
-  const sizeClass = {
+export function LoadingSpinner({ size = 'md', fullPage = false, text }: LoadingSpinnerProps) {
+  const sizeMap = {
     sm: '1.25rem',
     md: '2rem',
     lg: '3rem',
-  }[size];
+  };
+
+  const borderWidth = size === 'sm' ? '3px' : '4px';
 
   const spinner = (
     <div
-      className="spinner"
       style={{
-        width: sizeClass,
-        height: sizeClass,
-        border: size === 'sm' ? '2px solid #e5e7eb' : '3px solid #e5e7eb',
-        borderTopColor: '#6366f1',
-        borderRadius: '50%',
-        animation: 'spin 0.8s linear infinite',
+        width: sizeMap[size],
+        height: sizeMap[size],
+        border: `${borderWidth} solid var(--border-primary)`,
+        borderTopColor: 'var(--brand-primary)',
+        borderRadius: '0',
+        animation: 'spin 0.6s steps(8) infinite',
       }}
     />
   );
@@ -28,7 +30,7 @@ export function LoadingSpinner({ size = 'md', fullPage = false }: LoadingSpinner
     return (
       <div className="loading-container">
         {spinner}
-        <p className="text-gray-500">Loading...</p>
+        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontFamily: 'JetBrains Mono, monospace', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.075em' }}>{text || 'Loading...'}</p>
       </div>
     );
   }

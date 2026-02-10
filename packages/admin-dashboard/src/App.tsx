@@ -7,6 +7,7 @@ import Trainers from './pages/Trainers';
 import BSCReview from './pages/BSCReview';
 import Salary from './pages/Salary';
 import AuditLogs from './pages/AuditLogs';
+import TrainerLogs from './pages/TrainerLogs';
 import { useAuthStore } from './store/authStore';
 
 function App() {
@@ -32,6 +33,7 @@ function App() {
           <Route path="trainers" element={<Trainers />} />
           <Route path="bsc-review" element={<BSCReview />} />
           <Route path="salary" element={<Salary />} />
+          <Route path="trainer-logs" element={<TrainerLogs />} />
           <Route path="audit-logs" element={<AuditLogs />} />
         </Route>
 

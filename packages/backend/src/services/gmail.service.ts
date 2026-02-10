@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import fs from 'fs/promises';
 import path from 'path';
+import { buildEmailTemplate } from '../templates/emailFooter';
 
 const gmail = google.gmail('v1');
 
@@ -146,96 +147,19 @@ export async function createSalaryDraft(params: CreateDraftParams): Promise<Gmai
 }
 
 /**
- * Build salary email body HTML
+ * Build salary email body HTML (simplified)
  */
 export function buildSalaryEmailBody(params: {
   trainerName: string;
   month: string;
-  totalSalary: number;
 }): string {
-  const { trainerName, month, totalSalary } = params;
+  const { trainerName, month } = params;
 
-  return `
-<!DOCTYPE html>
-<html>
-<head>
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      line-height: 1.6;
-      color: #333;
-    }
-    .container {
-      max-width: 600px;
-      margin: 0 auto;
-      padding: 20px;
-    }
-    .header {
-      background: #e60000;
-      color: white;
-      padding: 20px;
-      text-align: center;
-      border-radius: 5px 5px 0 0;
-    }
-    .content {
-      background: #f9f9f9;
-      padding: 20px;
-      border-radius: 0 0 5px 5px;
-    }
-    .amount {
-      font-size: 24px;
-      font-weight: bold;
-      color: #e60000;
-      margin: 10px 0;
-    }
-    .footer {
-      margin-top: 20px;
-      padding-top: 20px;
-      border-top: 1px solid #ddd;
-      font-size: 12px;
-      color: #999;
-    }
-  </style>
-</head>
-<body>
-  <div class="container">
-    <div class="header">
-      <h2>🔴 Red Mat Pilates</h2>
-      <p>Salary Statement - ${month}</p>
-    </div>
-    <div class="content">
-      <p>Dear ${trainerName},</p>
-
-      <p>Please find attached your salary statement for <strong>${month}</strong>.</p>
-
-      <div class="amount">Total Salary: ₹${totalSalary.toLocaleString('en-IN', {
-        minimumFractionDigits: 2,
-        maximumFractionDigits: 2
-      })}</div>
-
-      <p>The attached PDF contains the complete breakdown of your salary including:</p>
-      <ul>
-        <li>Base Salary</li>
-        <li>Quarterly Performance Bonus (if applicable)</li>
-        <li>Total Amount</li>
-      </ul>
-
-      <p>If you have any questions regarding your salary statement, please feel free to reach out.</p>
-
-      <p>Thank you for your continued dedication to Red Mat Pilates!</p>
-
-      <div class="footer">
-        <p>Best regards,<br>
-        <strong>Red Mat Pilates</strong><br>
-        Fitness & Wellness</p>
-
-        <p>This is an automated email. Please do not reply to this message.</p>
-      </div>
-    </div>
-  </div>
-</body>
-</html>
-  `.trim();
+  return buildEmailTemplate({
+    greeting: `Dear ${trainerName},`,
+    body: `<p style="margin: 15px 0; font-size: 14px;">Please find attached your salary statement for the month of <strong>${month}</strong>.</p>`,
+    includeAutoMessage: true
+  });
 }
 
 /**

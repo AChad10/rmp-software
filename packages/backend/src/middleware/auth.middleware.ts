@@ -2,7 +2,10 @@ import { Request, Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { JWTPayload } from '@rmp/shared-types';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'your-secret-key-change-in-production';
+if (!process.env.JWT_SECRET) {
+  throw new Error('JWT_SECRET environment variable is required. Generate one with: openssl rand -base64 64');
+}
+const JWT_SECRET: string = process.env.JWT_SECRET;
 
 // Extend Express Request to include user
 declare global {

@@ -1,20 +1,30 @@
 import { Request, Response } from 'express';
 import { Trainer, BSCEntry, AuditLog } from '../models';
-import { SubmitBSCRequest, ValidateBSCRequest, ApiResponse } from '@rmp/shared-types';
+import { SubmitBSCRequest, ValidateBSCRequest, ApiResponse, DEFAULT_TRAINER_SCORECARD, IScorecardMetric } from '@rmp/shared-types';
+import { ITrainerDocument } from '../models/Trainer';
+
+// Resolves the scorecard a trainer actually uses: default or custom
+function getEffectiveScorecard(trainer: ITrainerDocument): IScorecardMetric[] {
+  if (trainer.useDefaultScorecard) return DEFAULT_TRAINER_SCORECARD;
+  return trainer.scorecardTemplate.length > 0 ? trainer.scorecardTemplate : DEFAULT_TRAINER_SCORECARD;
+}
 
 /**
  * Submit BSC self-assessment
  * POST /api/bsc/submit
+ *
+ * Requires `bscAccessToken` in the request body to prove the caller is the
+ * trainer they claim to be. This prevents Trainer A from submitting for Trainer B.
  */
 export async function submitBSC(req: Request, res: Response): Promise<void> {
   try {
-    const { trainerId, quarter, selfScores }: SubmitBSCRequest = req.body;
+    const { trainerId, quarter, selfScores, bscAccessToken } = req.body as SubmitBSCRequest & { bscAccessToken?: string };
 
     // Validate inputs
-    if (!trainerId || !quarter || !selfScores) {
+    if (!trainerId || !quarter || !selfScores || !bscAccessToken) {
       res.status(400).json({
         success: false,
-        error: 'trainerId, quarter, and selfScores are required'
+        error: 'trainerId, quarter, selfScores, and bscAccessToken are required'
       } as ApiResponse);
       return;
     }
@@ -38,16 +48,18 @@ export async function submitBSC(req: Request, res: Response): Promise<void> {
       return;
     }
 
-    // Validate scores against trainer's scorecard template
-    if (trainer.scorecardTemplate.length === 0) {
-      res.status(400).json({
+    // Verify the BSC access token matches this trainer (prevents cross-trainer submission)
+    if (trainer.bscAccessToken !== bscAccessToken) {
+      res.status(403).json({
         success: false,
-        error: 'No scorecard template configured for this trainer'
+        error: 'Invalid access token for this trainer'
       } as ApiResponse);
       return;
     }
 
-    const templateMetrics = trainer.scorecardTemplate.map(m => m.metricName);
+    const scorecard = getEffectiveScorecard(trainer);
+
+    const templateMetrics = scorecard.map(m => m.metricName);
     const scoreMetrics = selfScores.map(s => s.metricName);
 
     // Check all template metrics are present
@@ -65,7 +77,7 @@ export async function submitBSC(req: Request, res: Response): Promise<void> {
     let weightedSum = 0;
 
     for (const score of selfScores) {
-      const metric = trainer.scorecardTemplate.find(m => m.metricName === score.metricName);
+      const metric = scorecard.find(m => m.metricName === score.metricName);
       if (!metric) {
         res.status(400).json({
           success: false,
@@ -143,8 +155,37 @@ export async function submitBSC(req: Request, res: Response): Promise<void> {
     res.status(500).json({
       success: false,
       error: 'Failed to submit BSC',
-      message: error.message
+      ...(process.env.NODE_ENV === 'development' && { message: error.message })
     } as ApiResponse);
+  }
+}
+
+/**
+ * Check existing BSC submission for a trainer (token-authenticated)
+ * GET /api/bsc/check/:trainerId/:quarter?token=<bscAccessToken>
+ */
+export async function checkBSCByToken(req: Request, res: Response): Promise<void> {
+  try {
+    const { trainerId, quarter } = req.params;
+    const { token } = req.query;
+
+    if (!token || typeof token !== 'string' || token.length !== 64) {
+      res.status(400).json({ success: false, error: 'Valid access token required' } as ApiResponse);
+      return;
+    }
+
+    // Verify token belongs to this trainer
+    const trainer = await Trainer.findById(trainerId);
+    if (!trainer || trainer.bscAccessToken !== token) {
+      res.status(403).json({ success: false, error: 'Invalid access token for this trainer' } as ApiResponse);
+      return;
+    }
+
+    const entries = await BSCEntry.find({ trainerId, quarter });
+    res.json({ success: true, data: entries } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error checking BSC:', error);
+    res.status(500).json({ success: false, error: 'Failed to check BSC entries' } as ApiResponse);
   }
 }
 
@@ -178,7 +219,7 @@ export async function getPendingBSC(req: Request, res: Response): Promise<void> 
     res.status(500).json({
       success: false,
       error: 'Failed to fetch pending BSC entries',
-      message: error.message
+      ...(process.env.NODE_ENV === 'development' && { message: error.message })
     } as ApiResponse);
   }
 }
@@ -227,12 +268,14 @@ export async function validateBSC(req: Request, res: Response): Promise<void> {
       return;
     }
 
+    const scorecard = getEffectiveScorecard(trainer);
+
     // Calculate final weighted score
     let totalWeight = 0;
     let weightedSum = 0;
 
     for (const score of validatedScores) {
-      const metric = trainer.scorecardTemplate.find(m => m.metricName === score.metricName);
+      const metric = scorecard.find(m => m.metricName === score.metricName);
       if (!metric) {
         res.status(400).json({
           success: false,
@@ -284,7 +327,7 @@ export async function validateBSC(req: Request, res: Response): Promise<void> {
     res.status(500).json({
       success: false,
       error: 'Failed to validate BSC',
-      message: error.message
+      ...(process.env.NODE_ENV === 'development' && { message: error.message })
     } as ApiResponse);
   }
 }
@@ -315,7 +358,8 @@ export async function getTrainerBSC(req: Request, res: Response): Promise<void> 
         trainer: {
           _id: trainer._id.toString(),
           name: trainer.name,
-          scorecardTemplate: trainer.scorecardTemplate
+          useDefaultScorecard: trainer.useDefaultScorecard,
+          scorecardTemplate: getEffectiveScorecard(trainer)
         },
         entries
       }
@@ -326,7 +370,7 @@ export async function getTrainerBSC(req: Request, res: Response): Promise<void> 
     res.status(500).json({
       success: false,
       error: 'Failed to fetch trainer BSC entries',
-      message: error.message
+      ...(process.env.NODE_ENV === 'development' && { message: error.message })
     } as ApiResponse);
   }
 }
@@ -362,7 +406,7 @@ export async function getAllBSC(req: Request, res: Response): Promise<void> {
     res.status(500).json({
       success: false,
       error: 'Failed to fetch BSC entries',
-      message: error.message
+      ...(process.env.NODE_ENV === 'development' && { message: error.message })
     } as ApiResponse);
   }
 }

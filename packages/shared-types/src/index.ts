@@ -1,26 +1,44 @@
+// Team Type
+export type TeamType = 'trainer' | 'ops_team' | 'sales_team' | 'other';
+
+// Experience Level Types
+export type TrainerExperienceLevel = 'junior' | 'senior' | 'master';
+export type StaffExperienceLevel = 'junior' | 'senior' | 'manager';
+export type ExperienceLevel = TrainerExperienceLevel | StaffExperienceLevel;
+
 // Trainer Interface
 export interface ITrainer {
   _id?: string;
   userId: string; // Slack user ID
   name: string;
-  memberId: string;
+  employeeCode: string; // Employee code (formerly memberId)
+  designation: string; // e.g., "Instructor"
+  panNumber: string; // PAN card number
   email: string;
   phone: string;
   joinDate: Date;
   status: 'active' | 'inactive' | 'on_leave';
+  team: TeamType;
+  customTeam?: string; // Only used when team is 'other'
+  experienceLevel?: ExperienceLevel; // Junior/Senior/Master for trainers, Junior/Senior/Manager for ops/sales
 
   // Salary Configuration
-  baseSalary: number;
-  quarterlyBonusAmount: number;
+  annualCTC: number; // Annual CTC (e.g., 516000)
+  baseSalary: number; // Monthly base salary (e.g., 40000)
+  quarterlyBonusAmount: number; // Annual bonus pool (e.g., 36000)
 
   // Scorecard Configuration
-  scorecardTemplate: IScorecardMetric[];
+  useDefaultScorecard: boolean; // If true, use DEFAULT_TRAINER_SCORECARD instead of custom template
+  scorecardTemplate: IScorecardMetric[]; // Custom template (only used when useDefaultScorecard is false)
 
-  // Personalized URLs (from existing system)
-  balScoreCardUrl: string;
-  trainerLogsUrl: string;
-  paymentAdviceUrl: string;
-  leaveRecordsUrl: string;
+  // BSC Access Token (secure URL for trainer to access their BSC form)
+  bscAccessToken?: string;
+
+  // Personalized URLs (legacy – optional)
+  balScoreCardUrl?: string;
+  trainerLogsUrl?: string;
+  paymentAdviceUrl?: string;
+  leaveRecordsUrl?: string;
 
   // Audit fields
   createdAt: Date;
@@ -145,17 +163,24 @@ export interface PaginatedResponse<T> extends ApiResponse<T[]> {
 export interface CreateTrainerRequest {
   userId: string;
   name: string;
-  memberId: string;
+  employeeCode: string;
+  designation: string;
+  panNumber?: string;
   email: string;
   phone: string;
   joinDate: Date;
+  annualCTC: number;
   baseSalary: number;
   quarterlyBonusAmount: number;
+  useDefaultScorecard: boolean;
   scorecardTemplate: IScorecardMetric[];
-  balScoreCardUrl: string;
-  trainerLogsUrl: string;
-  paymentAdviceUrl: string;
-  leaveRecordsUrl: string;
+  team: TeamType;
+  customTeam?: string;
+  experienceLevel?: ExperienceLevel;
+  balScoreCardUrl?: string;
+  trainerLogsUrl?: string;
+  paymentAdviceUrl?: string;
+  leaveRecordsUrl?: string;
 }
 
 export interface UpdateTrainerRequest extends Partial<CreateTrainerRequest> {
@@ -196,3 +221,16 @@ export interface CronJobResult {
   results?: any;
   errors?: string[];
 }
+
+// Trainer Logs Draft Result
+export interface TrainerLogsDraftResult {
+  trainerId: string;
+  trainerName: string;
+  status: 'success' | 'failed' | 'skipped';
+  draftId?: string;
+  draftUrl?: string;
+  error?: string;
+}
+
+// Re-export constants
+export { DEFAULT_TRAINER_SCORECARD } from './constants';

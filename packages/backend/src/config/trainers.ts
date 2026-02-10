@@ -6,7 +6,7 @@
 export interface TrainerData {
   userId: string;
   name: string;
-  memberId: string;
+  employeeCode: string;
   balScoreCardUrl: string;
   trainerLogsUrl: string;
   paymentAdviceUrl: string;
@@ -27,7 +27,7 @@ export const trainers: Record<string, TrainerData> = {
   // 'U12345678': {
   //   userId: 'U12345678',
   //   name: 'Taiyaba',
-  //   memberId: 'TRAINER001',
+  //   employeeCode: 'TRAINER001',
   //   balScoreCardUrl: 'https://docs.google.com/spreadsheets/d/YOUR_BAL_SCORECARD_ID',
   //   trainerLogsUrl: 'https://docs.google.com/spreadsheets/d/YOUR_TRAINER_LOGS_ID',
   //   paymentAdviceUrl: 'https://docs.google.com/spreadsheets/d/YOUR_PAYMENT_ADVICE_ID',
@@ -66,6 +66,7 @@ export async function getTrainerDataWithFallback(userId: string): Promise<{
   trainerLogsUrl: string;
   paymentAdviceUrl: string;
   leaveRecordsUrl: string;
+  bscAccessToken?: string;
 }> {
   // Try to import Trainer model and query MongoDB
   try {
@@ -75,10 +76,11 @@ export async function getTrainerDataWithFallback(userId: string): Promise<{
     if (trainerDoc) {
       return {
         name: trainerDoc.name,
-        balScoreCardUrl: trainerDoc.balScoreCardUrl,
-        trainerLogsUrl: trainerDoc.trainerLogsUrl,
-        paymentAdviceUrl: trainerDoc.paymentAdviceUrl,
-        leaveRecordsUrl: trainerDoc.leaveRecordsUrl,
+        balScoreCardUrl: trainerDoc.balScoreCardUrl || defaultTrainerUrls.balScoreCardUrl,
+        trainerLogsUrl: trainerDoc.trainerLogsUrl || defaultTrainerUrls.trainerLogsUrl,
+        paymentAdviceUrl: trainerDoc.paymentAdviceUrl || defaultTrainerUrls.paymentAdviceUrl,
+        leaveRecordsUrl: trainerDoc.leaveRecordsUrl || defaultTrainerUrls.leaveRecordsUrl,
+        bscAccessToken: trainerDoc.bscAccessToken,
       };
     }
   } catch (error) {

@@ -6,9 +6,9 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        {/* BSC Form Routes */}
-        <Route path="/:trainerId" element={<BSCForm />} />
-        <Route path="/:trainerId/:quarter" element={<BSCForm />} />
+        {/* BSC Form Routes - uses secure access token */}
+        <Route path="/form/:token" element={<BSCForm />} />
+        <Route path="/form/:token/:quarter" element={<BSCForm />} />
 
         {/* Success Page */}
         <Route path="/success" element={<Success />} />
@@ -28,48 +28,59 @@ function Home() {
   return (
     <div style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+      background: '#f9fafb',
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      padding: '20px',
+      padding: '40px 20px',
+      fontFamily: 'Arial, Helvetica, sans-serif',
     }}>
       <div style={{
         background: 'white',
-        borderRadius: '12px',
-        padding: '40px',
+        borderRadius: '8px',
+        padding: '48px 40px',
         maxWidth: '600px',
         textAlign: 'center',
-        boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+        boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+        border: '1px solid #e5e7eb',
       }}>
-        <h1 style={{ marginBottom: '20px', color: '#1f2937' }}>
-          Red Mat Pilates - BSC Submission
+        <h1 style={{
+          marginBottom: '16px',
+          color: '#080808',
+          fontSize: '32px',
+          fontWeight: '600',
+          letterSpacing: '-0.5px',
+        }}>
+          Red Mat Pilates
         </h1>
-        <p style={{ color: '#6b7280', lineHeight: '1.6', marginBottom: '20px' }}>
-          This is the BSC (Balanced Score Card) self-assessment portal for Red Mat Pilates trainers.
+        <p style={{
+          color: '#116dff',
+          fontSize: '15px',
+          fontWeight: '600',
+          textTransform: 'uppercase',
+          letterSpacing: '0.5px',
+          marginBottom: '24px',
+        }}>
+          BSC Self-Assessment Portal
+        </p>
+        <p style={{ color: '#6b7280', lineHeight: '1.6', marginBottom: '28px', fontSize: '15px' }}>
+          This is the Balanced Score Card self-assessment portal for Red Mat Pilates trainers.
         </p>
         <div style={{
           background: '#f9fafb',
           border: '1px solid #e5e7eb',
           borderRadius: '8px',
-          padding: '20px',
+          padding: '24px',
           textAlign: 'left',
         }}>
-          <h2 style={{ fontSize: '18px', marginBottom: '15px', color: '#1f2937' }}>
-            📋 How to Access Your Form
+          <h2 style={{ fontSize: '18px', marginBottom: '12px', color: '#080808', fontWeight: '600' }}>
+            How to Access Your Form
           </h2>
-          <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: '1.6' }}>
+          <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: '1.6', marginBottom: '12px' }}>
             You should receive a personalized link from your manager via Slack when it's time to complete your quarterly assessment.
           </p>
-          <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: '1.6', marginTop: '10px' }}>
-            The link format is: <code style={{
-              background: '#e5e7eb',
-              padding: '2px 6px',
-              borderRadius: '4px',
-              fontSize: '12px'
-            }}>
-              /trainerId/quarter
-            </code>
+          <p style={{ color: '#6b7280', fontSize: '14px', lineHeight: '1.6' }}>
+            Your personalized link contains a secure access token that is unique to you.
           </p>
         </div>
       </div>

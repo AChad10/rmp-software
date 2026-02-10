@@ -2,28 +2,43 @@ import puppeteer from 'puppeteer';
 import fs from 'fs/promises';
 import path from 'path';
 
-interface SalaryPDFData {
-  trainerName: string;
-  memberId: string;
-  month: string;
-  year: number;
-  monthNumber: number;
-  baseSalary: number;
-  quarterlyBonusAmount: number;
-  bscScore: number;
-  calculatedBonus: number;
-  totalSalary: number;
-  bscApplied: boolean;
+export interface SalaryPDFData {
+  // Employee Info
+  employeeName: string;
+  designation: string;
+  employeeCode: string;
+  panNumber: string;
+
+  // Period Info
+  period: string; // e.g., "Jan-26"
+  daysInPeriod: number;
+  financialYear: string; // e.g., "2025-26"
+  month: string; // e.g., "2026-01" for file naming
+
+  // Fixed Compensation
+  annualBase: number;
+  monthlyBase: number;
+  currentBase: number;
+  baseRemarks: string;
+
+  // Variable Compensation
+  annualBonus: number;
+  monthlyBonus: number;
+  currentBonus: string; // Can be empty for non-payout months
+  bonusRemarks: string;
+
+  // Totals
+  annualCTC: number;
+  monthlyCTC: number;
+
+  // Other
+  travelRemarks: string;
+  bankTransfer: number;
+  milestoneNote: string;
 }
 
 const STORAGE_DIR = path.join(__dirname, '../../storage/salary-statements');
 const TEMPLATE_PATH = path.join(__dirname, '../templates/salaryStatement.html');
-
-// Month names for display
-const MONTH_NAMES = [
-  'January', 'February', 'March', 'April', 'May', 'June',
-  'July', 'August', 'September', 'October', 'November', 'December'
-];
 
 /**
  * Ensure storage directory exists
@@ -33,18 +48,67 @@ async function ensureStorageDir(): Promise<void> {
     await fs.access(STORAGE_DIR);
   } catch {
     await fs.mkdir(STORAGE_DIR, { recursive: true });
-    console.log(`📁 Created storage directory: ${STORAGE_DIR}`);
+    console.log(`Created storage directory: ${STORAGE_DIR}`);
   }
 }
 
 /**
- * Format number as Indian Rupees with commas
+ * Format number with Indian number system (lakhs/crores)
  */
-function formatCurrency(amount: number): string {
-  return amount.toLocaleString('en-IN', {
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2
-  });
+function formatNumber(amount: number): string {
+  if (amount === 0) return '';
+  return amount.toLocaleString('en-IN');
+}
+
+/**
+ * Get days in a month
+ */
+export function getDaysInMonth(year: number, month: number): number {
+  return new Date(year, month, 0).getDate();
+}
+
+/**
+ * Get financial year string (e.g., "2025-26" for Jan 2026)
+ */
+export function getFinancialYear(year: number, month: number): string {
+  // Financial year runs April to March
+  // Jan-Mar belongs to previous FY (e.g., Jan 2026 = FY 2025-26)
+  // Apr-Dec belongs to current FY (e.g., Oct 2025 = FY 2025-26)
+  if (month <= 3) {
+    return `${year - 1}-${String(year).slice(-2)}`;
+  }
+  return `${year}-${String(year + 1).slice(-2)}`;
+}
+
+/**
+ * Get period string (e.g., "Jan-26")
+ */
+export function getPeriodString(year: number, month: number): string {
+  const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  return `${monthNames[month - 1]}-${String(year).slice(-2)}`;
+}
+
+/**
+ * Calculate milestone note based on join date
+ */
+export function getMilestoneNote(joinDate: Date): string {
+  const monthsWorked = Math.floor((Date.now() - joinDate.getTime()) / (1000 * 60 * 60 * 24 * 30));
+  const targetMonths = 30;
+
+  if (monthsWorked >= targetMonths) {
+    return `Completed ${targetMonths} months with the Company`;
+  }
+
+  const remainingMonths = targetMonths - monthsWorked;
+  const targetDate = new Date(joinDate);
+  targetDate.setMonth(targetDate.getMonth() + targetMonths);
+
+  const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
+                      'July', 'August', 'September', 'October', 'November', 'December'];
+  const targetMonth = monthNames[targetDate.getMonth()];
+  const targetYear = targetDate.getFullYear();
+
+  return `${targetMonths} months with the Company - ${targetMonth} ${targetYear}`;
 }
 
 /**
@@ -59,67 +123,56 @@ export async function generateSalaryPDF(data: SalaryPDFData): Promise<{
   // Read HTML template
   let html = await fs.readFile(TEMPLATE_PATH, 'utf-8');
 
-  // Build BSC section if bonus was applied
-  let bscSection = '';
-  if (data.bscApplied && data.bscScore > 0) {
-    bscSection = `
-      <div class="bsc-section">
-        <div class="bsc-title">🎯 Balanced Score Card (BSC) Performance Bonus</div>
-        <div class="bsc-details">
-          Your quarterly BSC score: <strong>${(data.bscScore * 10).toFixed(1)}/10</strong><br>
-          Bonus pool: ₹${formatCurrency(data.quarterlyBonusAmount)}<br>
-          Calculated bonus: ₹${formatCurrency(data.calculatedBonus)} (${(data.bscScore * 100).toFixed(1)}% of pool)
-        </div>
-      </div>
-    `;
-  }
-
-  // Build bonus note
-  let bonusNote = '';
-  if (data.bscApplied && data.bscScore > 0) {
-    bonusNote = '<div class="note">(Based on BSC Score: ' + (data.bscScore * 10).toFixed(1) + '/10)</div>';
-  } else if (!data.bscApplied) {
-    bonusNote = '<div class="note">(No BSC score available for this quarter)</div>';
-  }
-
   // Replace template variables
   html = html
-    .replace(/{{TRAINER_NAME}}/g, data.trainerName)
-    .replace(/{{MEMBER_ID}}/g, data.memberId)
-    .replace(/{{MONTH}}/g, data.month)
-    .replace(/{{MONTH_NAME}}/g, MONTH_NAMES[data.monthNumber - 1])
-    .replace(/{{YEAR}}/g, data.year.toString())
-    .replace(/{{BASE_SALARY}}/g, formatCurrency(data.baseSalary))
-    .replace(/{{CALCULATED_BONUS}}/g, formatCurrency(data.calculatedBonus))
-    .replace(/{{TOTAL_SALARY}}/g, formatCurrency(data.totalSalary))
-    .replace(/{{GENERATED_DATE}}/g, new Date().toLocaleDateString('en-IN', {
-      day: 'numeric',
-      month: 'long',
-      year: 'numeric'
-    }))
-    .replace(/{{BSC_SECTION}}/g, bscSection)
-    .replace(/{{BONUS_NOTE}}/g, bonusNote);
+    // Header - Employee Info
+    .replace(/{{EMPLOYEE_NAME}}/g, data.employeeName)
+    .replace(/{{DESIGNATION}}/g, data.designation)
+    .replace(/{{EMPLOYEE_CODE}}/g, data.employeeCode)
+    .replace(/{{PAN_NUMBER}}/g, data.panNumber || '')
+    // Header - Period Info
+    .replace(/{{PERIOD}}/g, data.period)
+    .replace(/{{DAYS_IN_PERIOD}}/g, data.daysInPeriod.toString())
+    .replace(/{{FINANCIAL_YEAR}}/g, data.financialYear)
+    // Fixed Compensation
+    .replace(/{{ANNUAL_BASE}}/g, formatNumber(data.annualBase))
+    .replace(/{{MONTHLY_BASE}}/g, formatNumber(data.monthlyBase))
+    .replace(/{{CURRENT_BASE}}/g, formatNumber(data.currentBase))
+    .replace(/{{BASE_REMARKS}}/g, data.baseRemarks || '')
+    // Variable Compensation
+    .replace(/{{ANNUAL_BONUS}}/g, formatNumber(data.annualBonus))
+    .replace(/{{MONTHLY_BONUS}}/g, formatNumber(data.monthlyBonus))
+    .replace(/{{CURRENT_BONUS}}/g, data.currentBonus || '')
+    .replace(/{{BONUS_REMARKS}}/g, data.bonusRemarks || '')
+    // Totals
+    .replace(/{{ANNUAL_CTC}}/g, formatNumber(data.annualCTC))
+    .replace(/{{MONTHLY_CTC}}/g, formatNumber(data.monthlyCTC))
+    // Other
+    .replace(/{{TRAVEL_REMARKS}}/g, data.travelRemarks || '')
+    .replace(/{{BANK_TRANSFER}}/g, formatNumber(data.bankTransfer))
+    .replace(/{{MILESTONE_NOTE}}/g, data.milestoneNote || '');
 
-  // Generate filename: YYYY-MM-TrainerName.pdf
-  const sanitizedName = data.trainerName.replace(/[^a-zA-Z0-9]/g, '-');
+  // Generate filename: YYYY-MM-EmployeeName.pdf
+  const sanitizedName = data.employeeName.replace(/[^a-zA-Z0-9]/g, '-');
   const filename = `${data.month}-${sanitizedName}.pdf`;
   const pdfPath = path.join(STORAGE_DIR, filename);
 
   // Launch Puppeteer and generate PDF
-  console.log(`📄 Generating PDF for ${data.trainerName}...`);
+  console.log(`Generating PDF for ${data.employeeName}...`);
 
   const browser = await puppeteer.launch({
     headless: true,
-    args: ['--no-sandbox', '--disable-setuid-sandbox']
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
   });
 
   try {
     const page = await browser.newPage();
-    await page.setContent(html, { waitUntil: 'networkidle0' });
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
 
     await page.pdf({
       path: pdfPath,
       format: 'A4',
+      landscape: true, // Landscape for wider table
       printBackground: true,
       margin: {
         top: '20px',
@@ -129,7 +182,7 @@ export async function generateSalaryPDF(data: SalaryPDFData): Promise<{
       }
     });
 
-    console.log(`✅ PDF generated: ${filename}`);
+    console.log(`PDF generated: ${filename}`);
 
   } finally {
     await browser.close();
@@ -151,7 +204,7 @@ export async function generateSalaryPDF(data: SalaryPDFData): Promise<{
 export async function deleteSalaryPDF(pdfPath: string): Promise<void> {
   try {
     await fs.unlink(pdfPath);
-    console.log(`🗑️  Deleted PDF: ${pdfPath}`);
+    console.log(`Deleted PDF: ${pdfPath}`);
   } catch (error) {
     console.error(`Failed to delete PDF: ${pdfPath}`, error);
     throw error;

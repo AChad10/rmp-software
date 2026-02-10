@@ -16,6 +16,20 @@ interface SalaryBreakdown {
 }
 
 /**
+ * Quarter abbreviation labels
+ */
+const QUARTER_LABELS: Record<number, string> = {
+  1: 'JFM',
+  2: 'AMJ',
+  3: 'JAS',
+  4: 'OND',
+};
+
+export function getQuarterLabel(quarterNumber: number): string {
+  return QUARTER_LABELS[quarterNumber] || '';
+}
+
+/**
  * Get quarter for a given month
  * @param month Format: "2026-03"
  * @returns Quarter string like "2026-Q1"
@@ -39,6 +53,36 @@ export function getQuarter(month: string): { quarter: string; year: number; quar
 }
 
 /**
+ * Get the bonus quarter for a given salary month.
+ * Bonuses are paid one quarter after the quarter ends:
+ *   OND (Q4) bonus → paid in March
+ *   JFM (Q1) bonus → paid in June
+ *   AMJ (Q2) bonus → paid in September
+ *   JAS (Q3) bonus → paid in December
+ *
+ * Returns null if this month is not a bonus payout month.
+ */
+export function getBonusQuarter(month: string): { quarter: string; quarterNumber: 1 | 2 | 3 | 4; label: string } | null {
+  const [yearStr, monthStr] = month.split('-');
+  const year = parseInt(yearStr);
+  const monthNum = parseInt(monthStr);
+
+  // Only March, June, September, December are bonus payout months
+  switch (monthNum) {
+    case 3: // March → pay OND (Q4) bonus from previous year
+      return { quarter: `${year - 1}-Q4`, quarterNumber: 4, label: 'OND' };
+    case 6: // June → pay JFM (Q1) bonus from current year
+      return { quarter: `${year}-Q1`, quarterNumber: 1, label: 'JFM' };
+    case 9: // September → pay AMJ (Q2) bonus from current year
+      return { quarter: `${year}-Q2`, quarterNumber: 2, label: 'AMJ' };
+    case 12: // December → pay JAS (Q3) bonus from current year
+      return { quarter: `${year}-Q3`, quarterNumber: 3, label: 'JAS' };
+    default:
+      return null;
+  }
+}
+
+/**
  * Calculate salary for a single trainer for a given month
  */
 export async function calculateSalary(trainerId: string, month: string): Promise<SalaryBreakdown> {
@@ -57,36 +101,38 @@ export async function calculateSalary(trainerId: string, month: string): Promise
   const year = parseInt(yearStr);
   const monthNumber = parseInt(monthStr);
 
-  // Get quarter for this month
-  const { quarter } = getQuarter(month);
-
-  // Find BSC entry for this quarter
-  const bscEntry = await BSCEntry.findOne({
-    trainerId: trainer._id.toString(),
-    quarter,
-    status: 'validated'
-  });
+  // Check if this month is a bonus payout month
+  const bonusQuarter = getBonusQuarter(month);
 
   let calculatedBonus = 0;
   let bscScore = 0;
   let bscEntryId: string | undefined;
 
-  if (bscEntry && !bscEntry.bonusPaid) {
-    // BSC exists and bonus hasn't been paid yet
-    bscScore = bscEntry.finalScore || 0;
-    calculatedBonus = trainer.quarterlyBonusAmount * bscScore;
-    bscEntryId = bscEntry._id.toString();
+  if (bonusQuarter) {
+    // This is a bonus payout month - look up the BSC for the relevant quarter
+    const bscEntry = await BSCEntry.findOne({
+      trainerId: trainer._id.toString(),
+      quarter: bonusQuarter.quarter,
+      status: 'validated'
+    });
 
-    // Mark bonus as paid in this month
-    bscEntry.bonusPaidInMonth = month;
-    bscEntry.bonusPaid = true;
-    await bscEntry.save();
+    if (bscEntry && !bscEntry.bonusPaid) {
+      // BSC exists and bonus hasn't been paid yet
+      bscScore = bscEntry.finalScore || 0;
+      calculatedBonus = trainer.quarterlyBonusAmount * bscScore;
+      bscEntryId = bscEntry._id.toString();
 
-    console.log(`💰 Bonus applied for ${trainer.name}: ₹${calculatedBonus.toFixed(2)} (BSC: ${(bscScore * 10).toFixed(1)}/10)`);
-  } else if (bscEntry && bscEntry.bonusPaid) {
-    console.log(`⏭️  BSC bonus already paid for ${trainer.name} in ${bscEntry.bonusPaidInMonth}`);
-  } else {
-    console.log(`⚠️  No validated BSC found for ${trainer.name} for ${quarter}`);
+      // Mark bonus as paid in this month
+      bscEntry.bonusPaidInMonth = month;
+      bscEntry.bonusPaid = true;
+      await bscEntry.save();
+
+      console.log(`Bonus applied for ${trainer.name}: ${calculatedBonus.toFixed(2)} (BSC: ${(bscScore * 10).toFixed(1)}/10, quarter: ${bonusQuarter.label})`);
+    } else if (bscEntry && bscEntry.bonusPaid) {
+      console.log(`BSC bonus already paid for ${trainer.name} in ${bscEntry.bonusPaidInMonth}`);
+    } else {
+      console.log(`No validated BSC found for ${trainer.name} for ${bonusQuarter.label} (${bonusQuarter.quarter})`);
+    }
   }
 
   const totalSalary = trainer.baseSalary + calculatedBonus;

@@ -13,7 +13,6 @@ export default function Dashboard() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Derive current month string "YYYY-MM"
   const now = new Date();
   const currentMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
@@ -41,24 +40,23 @@ export default function Dashboard() {
   const sentCount = statements.filter((s) => s.status === 'sent').length;
 
   if (loading) {
-    return <div className="loading-container"><div className="loading-spinner" /><p className="text-gray-500">Loading dashboard…</p></div>;
+    return (
+      <div className="loading-container">
+        <div className="loading-spinner" />
+        <p className="text-muted">Loading dashboard...</p>
+      </div>
+    );
   }
 
-  /* --- stat card helper --- */
   const StatCard = ({ title, value, sub, color, linkTo }: {
     title: string; value: string | number; sub?: string; color: string; linkTo?: string;
   }) => (
     <Link to={linkTo || '#'} style={{ textDecoration: 'none', display: 'block' }}>
-      <div className="card" style={{ borderLeft: `4px solid ${color}`, cursor: linkTo ? 'pointer' : 'default', transition: 'box-shadow 0.15s' }}
-        onMouseEnter={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = '0 4px 12px rgba(0,0,0,0.12)'; }}
-        onMouseLeave={(e) => { (e.currentTarget as HTMLDivElement).style.boxShadow = ''; }}
-      >
-        <div className="card-body" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-          <div>
-            <p style={{ fontSize: '13px', color: '#6b7280', margin: 0 }}>{title}</p>
-            <p style={{ fontSize: '28px', fontWeight: '700', color: '#111827', margin: '4px 0 0' }}>{value}</p>
-            {sub && <p style={{ fontSize: '12px', color: '#9ca3af', margin: '4px 0 0' }}>{sub}</p>}
-          </div>
+      <div className="card stat-card" style={{ borderLeftColor: color, cursor: linkTo ? 'pointer' : 'default' }}>
+        <div className="card-body">
+          <p className="stat-card-title">{title}</p>
+          <p className="stat-card-value">{value}</p>
+          {sub && <p className="stat-card-sub">{sub}</p>}
         </div>
       </div>
     </Link>
@@ -66,29 +64,28 @@ export default function Dashboard() {
 
   return (
     <div>
-      {/* Page title */}
-      <div style={{ marginBottom: '24px' }}>
-        <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111827', margin: 0 }}>Dashboard</h1>
-        <p style={{ fontSize: '14px', color: '#6b7280', margin: '4px 0 0' }}>{formatMonth(currentMonth)} Overview</p>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Dashboard</h1>
+          <p className="page-subtitle">{formatMonth(currentMonth)} Overview</p>
+        </div>
       </div>
 
       {error && <div className="alert alert-error">{error}</div>}
 
-      {/* Stats Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginBottom: '28px' }}>
-        <StatCard title="Active Trainers" value={trainers.length} color="#6366f1" linkTo="/trainers" />
-        <StatCard title="Pending BSC Reviews" value={pendingBSC.length} color="#f59e0b" linkTo="/bsc-review" />
-        <StatCard title="Salary Statements" value={statements.length} sub={`${draftCount} draft · ${sentCount} sent`} color="#10b981" linkTo="/salary" />
-        <StatCard title="Total Payroll" value={formatCurrency(totalPayroll)} sub={formatMonth(currentMonth)} color="#8b5cf6" />
+      <div className="stats-grid">
+        <StatCard title="Active Trainers" value={trainers.length} color="var(--accent-indigo)" linkTo="/trainers" />
+        <StatCard title="Pending BSC Reviews" value={pendingBSC.length} color="var(--accent-amber)" linkTo="/bsc-review" />
+        <StatCard title="Salary Statements" value={statements.length} sub={`${draftCount} draft / ${sentCount} sent`} color="var(--accent-green)" linkTo="/salary" />
+        <StatCard title="Total Payroll" value={formatCurrency(totalPayroll)} sub={formatMonth(currentMonth)} color="var(--accent-purple)" />
       </div>
 
-      {/* Recent Activity – trainer list preview */}
       <div className="card">
         <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 className="card-title">Trainers</h2>
-          <Link to="/trainers" style={{ fontSize: '13px', color: '#6366f1', textDecoration: 'none' }}>View all →</Link>
+          <Link to="/trainers" style={{ fontSize: '13px', color: 'var(--accent-indigo)', textDecoration: 'none' }}>View all</Link>
         </div>
-        <div className="table-container" style={{ borderRadius: 0, border: 'none', borderTop: '1px solid #e5e7eb' }}>
+        <div className="table-container" style={{ borderRadius: 0, border: 'none', borderTop: '1px solid var(--border-primary)' }}>
           <table className="table">
             <thead>
               <tr>
@@ -102,11 +99,11 @@ export default function Dashboard() {
             <tbody>
               {trainers.slice(0, 6).map((t) => (
                 <tr key={t._id}>
-                  <td style={{ fontWeight: '500' }}>{t.name}</td>
-                  <td style={{ color: '#6b7280' }}>{t.email}</td>
-                  <td style={{ textAlign: 'right' }}>{formatCurrency(t.baseSalary)}</td>
-                  <td style={{ textAlign: 'right', color: '#6b7280' }}>
-                    {t.quarterlyBonusAmount ? formatCurrency(t.quarterlyBonusAmount) : '—'}
+                  <td style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{t.name}</td>
+                  <td style={{ color: 'var(--text-muted)' }}>{t.email}</td>
+                  <td style={{ textAlign: 'right', color: 'var(--text-primary)' }}>{formatCurrency(t.baseSalary)}</td>
+                  <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>
+                    {t.quarterlyBonusAmount ? formatCurrency(t.quarterlyBonusAmount) : '--'}
                   </td>
                   <td>
                     <span className={`badge ${t.status === 'active' ? 'badge-success' : 'badge-gray'}`}>

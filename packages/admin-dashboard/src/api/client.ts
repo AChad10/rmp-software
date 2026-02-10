@@ -22,8 +22,8 @@ apiClient.interceptors.request.use((config) => {
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
-      // Token expired or invalid - redirect to login
+    // Only redirect on 401 for authenticated requests, not the login call itself
+    if (error.response?.status === 401 && !error.config?.url?.includes('/auth/login')) {
       localStorage.removeItem('auth_token');
       localStorage.removeItem('user');
       window.location.href = '/login';

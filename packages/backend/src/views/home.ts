@@ -1,94 +1,93 @@
 import { View } from '@slack/bolt';
 import { config } from '../config';
 import { getTrainerDataWithFallback } from '../config/trainers';
-import { Trainer, SalaryStatement } from '../models';
+import { Trainer } from '../models';
+import { getCurrentQuarter } from '../utils/quarter';
 
 interface BuildHomeViewParams {
   userName: string;
   userId: string;
 }
 
+function getGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning';
+  if (hour < 17) return 'Good afternoon';
+  return 'Good evening';
+}
+
+function getQuarterMonths(quarter: string): string {
+  const q = parseInt(quarter.split('Q')[1]);
+  const labels: Record<number, string> = {
+    1: 'Jan - Mar',
+    2: 'Apr - Jun',
+    3: 'Jul - Sep',
+    4: 'Oct - Dec',
+  };
+  return labels[q] || '';
+}
+
 export async function buildHomeView({ userName, userId }: BuildHomeViewParams): Promise<View> {
-  // Get trainer-specific data (or fallback to defaults)
   const trainerData = await getTrainerDataWithFallback(userId);
 
-  // Try to get latest salary statement for this trainer
-  let latestSalary = null;
+  // Get trainer details for personalized info
+  let trainerInfo: { designation?: string; team?: string } = {};
   try {
     const trainer = await Trainer.findOne({ userId, status: 'active' });
     if (trainer) {
-      latestSalary = await SalaryStatement.findOne({
-        trainerId: trainer._id.toString()
-      }).sort({ year: -1, monthNumber: -1 });
+      trainerInfo = {
+        designation: trainer.designation,
+        team: trainer.team,
+      };
     }
   } catch (error) {
-    console.warn('Failed to fetch latest salary:', error);
+    console.warn('Failed to fetch trainer info:', error);
   }
 
-  // Build salary section if we have data
-  const salarySection = latestSalary ? [
-    {
-      type: 'header' as const,
-      text: {
-        type: 'plain_text' as const,
-        text: '💰 Current Month Salary',
-        emoji: true,
-      },
-    },
-    {
-      type: 'section' as const,
-      text: {
-        type: 'mrkdwn' as const,
-        text: `*${latestSalary.month}*\n` +
-              `Base Salary: ₹${latestSalary.baseSalary.toLocaleString('en-IN')}\n` +
-              (latestSalary.calculatedBonus > 0
-                ? `Bonus: ₹${latestSalary.calculatedBonus.toLocaleString('en-IN')}\n`
-                : '') +
-              `*Total: ₹${latestSalary.totalSalary.toLocaleString('en-IN')}*`,
-      },
-    },
-    {
-      type: 'divider' as const,
-    }
-  ] : [];
+  const currentQuarter = getCurrentQuarter();
+  const quarterMonths = getQuarterMonths(currentQuarter);
+  const greeting = getGreeting();
+  const firstName = userName.split(' ')[0];
 
   return {
     type: 'home',
     blocks: [
-      // Header with gradient effect using emojis
+      // Header
       {
         type: 'header',
         text: {
           type: 'plain_text',
-          text: '🔴 Red Mat Pilates - Trainer Dashboard',
-          emoji: true,
+          text: 'Red Mat Pilates',
         },
       },
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: `Welcome back, *${userName}*! 🙏\n_Your personalized command center for all things Red Mat Pilates._`,
+          text: `${greeting}, *${firstName}*`,
         },
+      },
+      {
+        type: 'context',
+        elements: [
+          {
+            type: 'mrkdwn',
+            text: trainerInfo.designation
+              ? `${trainerInfo.designation}  |  ${currentQuarter} (${quarterMonths})`
+              : currentQuarter,
+          },
+        ],
       },
       {
         type: 'divider',
       },
 
-      // Daily Tasks Section
-      {
-        type: 'header',
-        text: {
-          type: 'plain_text',
-          text: '⚡ Daily Tasks',
-          emoji: true,
-        },
-      },
+      // Daily Tasks
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: 'Quick access to your daily workflows',
+          text: '*Daily Tasks*',
         },
       },
       {
@@ -98,8 +97,7 @@ export async function buildHomeView({ userName, userId }: BuildHomeViewParams): 
             type: 'button',
             text: {
               type: 'plain_text',
-              text: '📅 Update Studio Availability',
-              emoji: true,
+              text: 'Update Studio Availability',
             },
             url: config.urls.fresha,
             action_id: 'open_fresha',
@@ -108,12 +106,11 @@ export async function buildHomeView({ userName, userId }: BuildHomeViewParams): 
             type: 'button',
             text: {
               type: 'plain_text',
-              text: '✅ Take Attendance',
-              emoji: true,
+              text: 'Take Attendance',
             },
             url: config.urls.punchpassAttendance,
             action_id: 'open_attendance',
-            style: 'danger', // Red accent for important action
+            style: 'danger',
           },
         ],
       },
@@ -124,128 +121,19 @@ export async function buildHomeView({ userName, userId }: BuildHomeViewParams): 
             type: 'button',
             text: {
               type: 'plain_text',
-              text: '📝 Update Client Health History',
-              emoji: true,
+              text: 'Update Client Health History',
             },
             url: config.urls.punchpassCustomers,
             action_id: 'open_customers',
           },
-        ],
-      },
-      {
-        type: 'divider',
-      },
-
-      // Performance & Admin Section
-      {
-        type: 'header',
-        text: {
-          type: 'plain_text',
-          text: '📊 Performance & Records',
-          emoji: true,
-        },
-      },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: 'Track your performance and access your personal records',
-        },
-      },
-      {
-        type: 'actions',
-        elements: [
           {
             type: 'button',
             text: {
               type: 'plain_text',
-              text: '📈 View Performance Dashboard',
-              emoji: true,
-            },
-            url: config.urls.powerBi,
-            action_id: 'open_powerbi',
-            style: 'primary', // Green accent
-          },
-          {
-            type: 'button',
-            text: {
-              type: 'plain_text',
-              text: '🎯 View Scorecard & Logs',
-              emoji: true,
-            },
-            action_id: 'open_scorecard_logs_modal',
-            style: 'danger', // Red accent for important access
-          },
-        ],
-      },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: '⏱️ *Core Hours This Month:* `42.5 hours`\n_Updated in real-time from your attendance records_',
-        },
-      },
-      {
-        type: 'divider',
-      },
-
-      // Salary Section (if available)
-      ...salarySection,
-
-      // Documents & Forms Section
-      {
-        type: 'header',
-        text: {
-          type: 'plain_text',
-          text: '📄 Documents & Forms',
-          emoji: true,
-        },
-      },
-      {
-        type: 'section',
-        text: {
-          type: 'mrkdwn',
-          text: 'Access your documents and submit important forms',
-        },
-      },
-      {
-        type: 'actions',
-        elements: [
-          {
-            type: 'button',
-            text: {
-              type: 'plain_text',
-              text: '💵 My Salary Slips',
-              emoji: true,
-            },
-            action_id: 'open_salary_modal',
-            style: 'primary', // Green accent
-          },
-          {
-            type: 'button',
-            text: {
-              type: 'plain_text',
-              text: '🧾 Form 16 (Tax Documents)',
-              emoji: true,
-            },
-            action_id: 'open_form16_modal',
-            style: 'primary', // Green accent
-          },
-        ],
-      },
-      {
-        type: 'actions',
-        elements: [
-          {
-            type: 'button',
-            text: {
-              type: 'plain_text',
-              text: '🤝 Pass New Client Referral',
-              emoji: true,
+              text: 'New Client Referral',
             },
             url: config.urls.referralForm,
             action_id: 'open_referral_form',
-            style: 'danger', // Red accent for business growth action
           },
         ],
       },
@@ -253,28 +141,79 @@ export async function buildHomeView({ userName, userId }: BuildHomeViewParams): 
         type: 'divider',
       },
 
-      // Resources & Help Section
-      {
-        type: 'header',
-        text: {
-          type: 'plain_text',
-          text: '💡 Resources & Help',
-          emoji: true,
-        },
-      },
+      // Quarterly Self-Assessment
       {
         type: 'section',
         text: {
           type: 'mrkdwn',
-          text: '*Quick Commands*\n• `/attendance` - Quick link to take attendance\n• `/schedule` - View your PunchPass schedule\n• `/payments` - Access salary slips\n• `/performance` - Open Power BI dashboard',
+          text: `*Quarterly Self-Assessment*\nSubmit your BSC for *${currentQuarter}* (${quarterMonths})`,
         },
       },
+      ...(trainerData.bscAccessToken ? [
+        {
+          type: 'actions' as const,
+          elements: [
+            {
+              type: 'button' as const,
+              text: {
+                type: 'plain_text' as const,
+                text: 'Fill BSC Form',
+              },
+              url: `${config.urls.bscFormBase}/form/${trainerData.bscAccessToken}/${currentQuarter}`,
+              action_id: 'open_bsc_form',
+              style: 'primary' as const,
+            },
+          ],
+        },
+      ] : [
+        {
+          type: 'context' as const,
+          elements: [
+            {
+              type: 'mrkdwn' as const,
+              text: '_BSC form not available. Please contact your manager._',
+            },
+          ],
+        },
+      ]),
+      {
+        type: 'divider',
+      },
+
+      // Performance
+      {
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text: '*Performance*',
+        },
+      },
+      {
+        type: 'actions',
+        elements: [
+          {
+            type: 'button',
+            text: {
+              type: 'plain_text',
+              text: 'View Performance Dashboard',
+            },
+            url: config.urls.powerBi,
+            action_id: 'open_powerbi',
+            style: 'primary',
+          },
+        ],
+      },
+      {
+        type: 'divider',
+      },
+
+      // Footer
       {
         type: 'context',
         elements: [
           {
             type: 'mrkdwn',
-            text: '💬 *Need help?* Contact business@redmatpilates.com',
+            text: 'Red Mat Pilates  |  Contact business@redmatpilates.com for support',
           },
         ],
       },

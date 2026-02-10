@@ -1,4 +1,5 @@
 import mongoose, { Schema, Document } from 'mongoose';
+import crypto from 'crypto';
 import { ITrainer, IScorecardMetric } from '@rmp/shared-types';
 
 // Extend ITrainer with Document for Mongoose
@@ -12,6 +13,11 @@ const ScorecardMetricSchema = new Schema<IScorecardMetric>({
   maxScore: { type: Number, required: true, default: 10 },
 }, { _id: false });
 
+// Generate a secure random token for BSC access
+function generateBscToken(): string {
+  return crypto.randomBytes(32).toString('hex');
+}
+
 const TrainerSchema = new Schema<ITrainerDocument>({
   userId: {
     type: String,
@@ -21,7 +27,9 @@ const TrainerSchema = new Schema<ITrainerDocument>({
     trim: true
   },
   name: { type: String, required: true, trim: true },
-  memberId: { type: String, required: true, unique: true, trim: true },
+  employeeCode: { type: String, required: true, unique: true, trim: true },
+  designation: { type: String, required: true, trim: true, default: 'Instructor' },
+  panNumber: { type: String, required: true, trim: true, uppercase: true },
   email: {
     type: String,
     required: true,
@@ -30,26 +38,51 @@ const TrainerSchema = new Schema<ITrainerDocument>({
     trim: true,
     match: [/^\S+@\S+\.\S+$/, 'Please enter a valid email address']
   },
-  phone: { type: String, required: true, trim: true },
+  phone: { type: String, trim: true },
   joinDate: { type: Date, required: true },
   status: {
     type: String,
     enum: ['active', 'inactive', 'on_leave'],
     default: 'active'
   },
+  team: {
+    type: String,
+    enum: ['trainer', 'ops_team', 'sales_team', 'other'],
+    required: true,
+    default: 'trainer'
+  },
+  customTeam: {
+    type: String,
+    trim: true
+  },
+  experienceLevel: {
+    type: String,
+    enum: ['junior', 'senior', 'master', 'manager'],
+  },
 
   // Salary Configuration
+  annualCTC: { type: Number, required: true, min: 0 },
   baseSalary: { type: Number, required: true, min: 0 },
-  quarterlyBonusAmount: { type: Number, required: true, min: 0 },
+  quarterlyBonusAmount: { type: Number, default: 0, min: 0 },
 
   // Scorecard Configuration
+  useDefaultScorecard: { type: Boolean, default: true },
   scorecardTemplate: { type: [ScorecardMetricSchema], default: [] },
 
-  // Personalized URLs
-  balScoreCardUrl: { type: String, required: true },
-  trainerLogsUrl: { type: String, required: true },
-  paymentAdviceUrl: { type: String, required: true },
-  leaveRecordsUrl: { type: String, required: true },
+  // BSC Access Token (secure URL for trainer to access their BSC form)
+  bscAccessToken: {
+    type: String,
+    unique: true,
+    sparse: true,
+    index: true,
+    default: generateBscToken
+  },
+
+  // Personalized URLs (legacy – optional)
+  balScoreCardUrl: { type: String },
+  trainerLogsUrl: { type: String },
+  paymentAdviceUrl: { type: String },
+  leaveRecordsUrl: { type: String },
 
   // Audit fields
   createdBy: { type: String },
@@ -64,15 +97,18 @@ TrainerSchema.index({ status: 1 });
 TrainerSchema.index({ name: 1 });
 
 // Virtual for ID as string
-TrainerSchema.virtual('id').get(function() {
+TrainerSchema.virtual('id').get(function(this: ITrainerDocument) {
   return this._id.toString();
 });
 
-// Ensure virtuals are included in JSON
+// Ensure virtuals are included in JSON – strip secrets by default
 TrainerSchema.set('toJSON', {
   virtuals: true,
   transform: function(_doc: any, ret: any) {
     ret._id = ret._id.toString();
+    // Never leak access tokens in API responses
+    delete ret.bscAccessToken;
+    delete ret.__v;
     return ret;
   }
 });

@@ -33,4 +33,12 @@ export const bscService = {
     }
     return response.data.data;
   },
+
+  async getTrainerBSC(trainerId: string): Promise<{ trainer: any; entries: IBSCEntry[] }> {
+    const response = await apiClient.get<ApiResponse<{ trainer: any; entries: IBSCEntry[] }>>(`/bsc/trainer/${trainerId}`);
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch trainer BSC data');
+    }
+    return response.data.data;
+  },
 };

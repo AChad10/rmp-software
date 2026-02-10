@@ -4,6 +4,9 @@
 .env.production
 packages/backend/.env
 
+# Credentials / secrets
+packages/backend/credentials/
+
 # Dependencies
 node_modules/
 packages/*/node_modules/

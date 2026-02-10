@@ -40,6 +40,17 @@ export const salaryService = {
     return response.data.data;
   },
 
+  async createDrafts(month: string): Promise<{ draftsCreated: number; errors: any[] }> {
+    const response = await apiClient.post<ApiResponse<{ draftsCreated: number; errors: any[] }>>(
+      '/salary/create-drafts',
+      { month }
+    );
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to create Gmail drafts');
+    }
+    return response.data.data;
+  },
+
   getPdfUrl(statementId: string): string {
     return `${apiClient.defaults.baseURL?.replace('/api', '')}/pdfs/${statementId}.pdf`;
   },

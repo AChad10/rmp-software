@@ -1,6 +1,31 @@
 import { useState, FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
+import { useThemeStore } from '../store/themeStore';
+
+function SunIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="5" />
+      <line x1="12" y1="1" x2="12" y2="3" />
+      <line x1="12" y1="21" x2="12" y2="23" />
+      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+      <line x1="1" y1="12" x2="3" y2="12" />
+      <line x1="21" y1="12" x2="23" y2="12" />
+      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+    </svg>
+  );
+}
+
+function MoonIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+    </svg>
+  );
+}
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -9,6 +34,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const login = useAuthStore((s) => s.login);
   const navigate = useNavigate();
+  const { theme, toggleTheme } = useThemeStore();
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -25,32 +51,29 @@ export default function Login() {
   };
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #312e81 0%, #6366f1 100%)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      padding: '20px',
-    }}>
-      <div style={{
-        background: 'white',
-        borderRadius: '12px',
-        boxShadow: '0 25px 50px rgba(0,0,0,0.25)',
-        padding: '48px 40px',
-        width: '100%',
-        maxWidth: '400px',
-      }}>
+    <div className="login-page">
+      {/* Theme toggle in corner */}
+      <button
+        className="theme-toggle"
+        onClick={toggleTheme}
+        title={theme === 'light' ? 'Switch to dark mode' : 'Switch to light mode'}
+        style={{ position: 'fixed', top: 20, right: 20 }}
+      >
+        {theme === 'light' ? <MoonIcon /> : <SunIcon />}
+      </button>
+
+      <div className="login-card">
         {/* Header */}
         <div style={{ textAlign: 'center', marginBottom: '32px' }}>
-          <div style={{
-            width: '64px', height: '64px', borderRadius: '16px',
-            background: 'linear-gradient(135deg, #312e81 0%, #6366f1 100%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            margin: '0 auto 16px', fontSize: '28px',
-          }}>🏋️</div>
-          <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#111827', margin: 0 }}>Red Mat Pilates</h1>
-          <p style={{ color: '#6b7280', fontSize: '14px', margin: '6px 0 0' }}>Payroll Admin Dashboard</p>
+          <div className="login-logo">
+            <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M12 2L2 7l10 5 10-5-10-5z" />
+              <path d="M2 17l10 5 10-5" />
+              <path d="M2 12l10 5 10-5" />
+            </svg>
+          </div>
+          <h1 className="login-title">Red Mat Pilates</h1>
+          <p className="login-subtitle">Payroll Admin Dashboard</p>
         </div>
 
         {/* Error */}
@@ -76,7 +99,7 @@ export default function Login() {
             <input
               type="password"
               className="input"
-              placeholder="••••••••"
+              placeholder="Enter your password"
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               required
@@ -84,12 +107,17 @@ export default function Login() {
             />
           </div>
 
-          <button type="submit" className="btn btn-primary btn-lg" style={{ width: '100%', marginTop: '8px' }} disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign In'}
+          <button
+            type="submit"
+            className="btn btn-primary btn-lg"
+            style={{ width: '100%', marginTop: '8px' }}
+            disabled={loading}
+          >
+            {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
 
-        <p style={{ textAlign: 'center', fontSize: '12px', color: '#9ca3af', marginTop: '24px' }}>
+        <p className="login-footer">
           Contact your administrator if you don't have access.
         </p>
       </div>

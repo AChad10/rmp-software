@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Salary Statement - {{MONTH}}</title>
+  <title>Salary Statement - {{PERIOD}}</title>
   <style>
     * {
       margin: 0;
@@ -12,231 +12,297 @@
     }
 
     body {
-      font-family: 'Arial', sans-serif;
-      padding: 40px;
-      background: #f5f5f5;
-    }
-
-    .container {
-      max-width: 800px;
-      margin: 0 auto;
+      font-family: 'Calibri', 'Arial', sans-serif;
+      font-size: 11px;
+      color: #333;
       background: white;
-      padding: 40px;
-      border-radius: 8px;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+      padding: 40px 50px;
     }
 
     .header {
-      text-align: center;
-      margin-bottom: 40px;
-      border-bottom: 3px solid #e60000;
-      padding-bottom: 20px;
-    }
-
-    .company-name {
-      font-size: 32px;
-      font-weight: bold;
-      color: #e60000;
-      margin-bottom: 5px;
-    }
-
-    .company-subtitle {
-      font-size: 14px;
-      color: #666;
-      margin-bottom: 15px;
-    }
-
-    .document-title {
-      font-size: 18px;
-      color: #333;
-      margin-top: 15px;
-      font-weight: 600;
-    }
-
-    .info-section {
       display: flex;
       justify-content: space-between;
-      margin-bottom: 30px;
-      padding: 15px;
-      background: #f9f9f9;
-      border-radius: 5px;
+      margin-bottom: 40px;
     }
 
-    .info-item {
+    .header-left {
       flex: 1;
     }
 
-    .info-label {
+    .header-right {
+      text-align: right;
+    }
+
+    .header-row {
+      display: flex;
+      margin-bottom: 4px;
+    }
+
+    .header-label {
+      font-weight: bold;
+      min-width: 110px;
+    }
+
+    .header-value {
+      margin-left: 10px;
+    }
+
+    .header-right-label {
+      font-weight: bold;
+      display: inline-block;
+      min-width: 100px;
+      text-align: left;
+    }
+
+    .header-right-value {
+      display: inline-block;
+      text-align: left;
+      min-width: 60px;
+    }
+
+    .header-right-row {
+      margin-bottom: 4px;
+    }
+
+    .section-title {
+      font-weight: bold;
       font-size: 12px;
-      color: #666;
-      text-transform: uppercase;
-      margin-bottom: 5px;
-    }
-
-    .info-value {
-      font-size: 16px;
+      margin-bottom: 10px;
+      text-align: right;
       color: #333;
-      font-weight: 600;
     }
 
+    /* Main Table */
     table {
       width: 100%;
       border-collapse: collapse;
-      margin: 20px 0;
-    }
-
-    thead {
-      background: #e60000;
-      color: white;
+      margin-bottom: 20px;
     }
 
     th {
-      padding: 12px;
+      background: #d9d9d9;
+      border: 1px solid #999;
+      padding: 8px 6px;
+      text-align: center;
+      font-weight: bold;
+      font-size: 10px;
+    }
+
+    th.left {
       text-align: left;
-      font-weight: 600;
-      font-size: 14px;
     }
 
     td {
-      padding: 12px;
-      border-bottom: 1px solid #eee;
-      font-size: 14px;
+      border: 1px solid #999;
+      padding: 6px;
+      font-size: 11px;
     }
 
-    tr:hover {
-      background: #f9f9f9;
+    .desc-col {
+      text-align: left;
     }
 
-    .description {
-      font-weight: 500;
-      color: #333;
+    .num-col {
+      text-align: center;
     }
 
-    .amount {
-      text-align: right;
-      font-weight: 600;
-      color: #333;
+    .remarks-col {
+      text-align: left;
+      font-size: 10px;
+      max-width: 180px;
     }
 
-    .note {
-      font-size: 12px;
-      color: #999;
-      font-style: italic;
-    }
-
-    .total-row {
-      background: #f0f0f0;
+    /* Section Headers */
+    .section-header {
+      background: #f2f2f2;
       font-weight: bold;
-      font-size: 16px;
     }
 
-    .total-row td {
-      border-bottom: 3px solid #e60000;
-      padding: 15px 12px;
+    /* Monthly Total Row */
+    .monthly-total {
+      background: #c65911;
+      color: white;
+      font-weight: bold;
     }
 
-    .total-amount {
-      color: #e60000;
-      font-size: 18px;
+    .monthly-total td {
+      border-color: #a04d0f;
     }
 
-    .bsc-section {
-      margin: 20px 0;
-      padding: 15px;
-      background: #fff9e6;
-      border-left: 4px solid #ffcc00;
-      border-radius: 4px;
+    /* Travel Row */
+    .travel-row td {
+      background: #fff2cc;
     }
 
-    .bsc-title {
-      font-weight: 600;
-      color: #333;
-      margin-bottom: 8px;
-      font-size: 14px;
+    .travel-label {
+      font-weight: bold;
     }
 
-    .bsc-details {
-      font-size: 13px;
+    /* Bank Transfer Row */
+    .bank-row td {
+      background: #e2efda;
+    }
+
+    .bank-label {
+      font-weight: bold;
+    }
+
+    .bank-amount {
+      font-weight: bold;
+    }
+
+    /* Footer Notes */
+    .footer {
+      margin-top: 30px;
+      font-size: 10px;
       color: #666;
       line-height: 1.6;
     }
 
-    .footer {
-      margin-top: 40px;
-      padding-top: 20px;
-      border-top: 1px solid #eee;
-      text-align: center;
-      font-size: 12px;
-      color: #999;
+    .footer p {
+      margin-bottom: 4px;
     }
 
-    .footer-note {
-      margin-top: 10px;
+    .footer .milestone {
+      font-weight: bold;
+      margin-bottom: 10px;
+    }
+
+    .italic {
       font-style: italic;
     }
   </style>
 </head>
 <body>
-  <div class="container">
-    <!-- Header -->
-    <div class="header">
-      <div class="company-name">🔴 Red Mat Pilates</div>
-      <div class="company-subtitle">Fitness & Wellness</div>
-      <div class="document-title">SALARY STATEMENT</div>
-    </div>
-
-    <!-- Employee Info -->
-    <div class="info-section">
-      <div class="info-item">
-        <div class="info-label">Trainer Name</div>
-        <div class="info-value">{{TRAINER_NAME}}</div>
+  <!-- Header Section -->
+  <div class="header">
+    <div class="header-left">
+      <div class="header-row">
+        <span class="header-label">Employee Name</span>
+        <span class="header-value">{{EMPLOYEE_NAME}}</span>
       </div>
-      <div class="info-item">
-        <div class="info-label">Member ID</div>
-        <div class="info-value">{{MEMBER_ID}}</div>
+      <div class="header-row">
+        <span class="header-label">Designation</span>
+        <span class="header-value">{{DESIGNATION}}</span>
       </div>
-      <div class="info-item">
-        <div class="info-label">Period</div>
-        <div class="info-value">{{MONTH_NAME}} {{YEAR}}</div>
+      <div class="header-row">
+        <span class="header-label">Employee Code</span>
+        <span class="header-value">{{EMPLOYEE_CODE}}</span>
+      </div>
+      <div class="header-row">
+        <span class="header-label">Pan No.</span>
+        <span class="header-value">{{PAN_NUMBER}}</span>
       </div>
     </div>
-
-    <!-- BSC Info (if applicable) -->
-    {{BSC_SECTION}}
-
-    <!-- Salary Breakdown Table -->
-    <table>
-      <thead>
-        <tr>
-          <th>Description</th>
-          <th style="text-align: right;">Amount (₹)</th>
-        </tr>
-      </thead>
-      <tbody>
-        <tr>
-          <td class="description">Base Salary</td>
-          <td class="amount">₹{{BASE_SALARY}}</td>
-        </tr>
-        <tr>
-          <td class="description">
-            Quarterly Performance Bonus
-            {{BONUS_NOTE}}
-          </td>
-          <td class="amount">₹{{CALCULATED_BONUS}}</td>
-        </tr>
-        <tr class="total-row">
-          <td class="description">TOTAL SALARY</td>
-          <td class="amount total-amount">₹{{TOTAL_SALARY}}</td>
-        </tr>
-      </tbody>
-    </table>
-
-    <!-- Footer -->
-    <div class="footer">
-      <div>Generated on {{GENERATED_DATE}}</div>
-      <div class="footer-note">This is a computer-generated document and does not require a signature.</div>
-      <div style="margin-top: 15px; color: #e60000; font-weight: 600;">Red Mat Pilates</div>
+    <div class="header-right">
+      <div class="section-title">Current Salary</div>
+      <div class="header-right-row">
+        <span class="header-right-label">Period*</span>
+        <span class="header-right-value">{{PERIOD}}</span>
+      </div>
+      <div class="header-right-row">
+        <span class="header-right-label">Days in Period</span>
+        <span class="header-right-value">{{DAYS_IN_PERIOD}}</span>
+      </div>
+      <div class="header-right-row">
+        <span class="header-right-label">Year</span>
+        <span class="header-right-value">{{FINANCIAL_YEAR}}</span>
+      </div>
     </div>
+  </div>
+
+  <!-- Salary Table -->
+  <table>
+    <thead>
+      <tr>
+        <th class="left" rowspan="2" style="width: 180px;"></th>
+        <th colspan="3" style="background: #fff2cc; color: #333;">Revised Eff 1st Oct 25</th>
+        <th rowspan="2" style="width: 80px;">Payment<br>Frequency</th>
+        <th rowspan="2" style="width: 180px;">Remarks</th>
+      </tr>
+      <tr>
+        <th style="width: 90px;">Annual CTC</th>
+        <th style="width: 110px;">Per Month (Effective CTC)</th>
+        <th style="width: 100px;">For Current Period</th>
+      </tr>
+    </thead>
+    <tbody>
+      <!-- Fixed Section -->
+      <tr class="section-header">
+        <td class="desc-col">Fixed</td>
+        <td class="num-col"></td>
+        <td class="num-col"></td>
+        <td class="num-col"></td>
+        <td class="num-col"></td>
+        <td class="remarks-col"></td>
+      </tr>
+      <tr>
+        <td class="desc-col">Basic Salary incl Travel</td>
+        <td class="num-col">{{ANNUAL_BASE}}</td>
+        <td class="num-col">{{MONTHLY_BASE}}</td>
+        <td class="num-col">{{CURRENT_BASE}}</td>
+        <td class="num-col">Monthly</td>
+        <td class="remarks-col">{{BASE_REMARKS}}</td>
+      </tr>
+
+      <!-- Variable Section -->
+      <tr class="section-header">
+        <td class="desc-col">Variable</td>
+        <td class="num-col"></td>
+        <td class="num-col"></td>
+        <td class="num-col"></td>
+        <td class="num-col"></td>
+        <td class="remarks-col"></td>
+      </tr>
+      <tr>
+        <td class="desc-col">Quarterly Performance Reward-<br>Linked to Bal Score Card*</td>
+        <td class="num-col">{{ANNUAL_BONUS}}</td>
+        <td class="num-col">{{MONTHLY_BONUS}}</td>
+        <td class="num-col">{{CURRENT_BONUS}}</td>
+        <td class="num-col">Quarterly</td>
+        <td class="remarks-col">{{BONUS_REMARKS}}</td>
+      </tr>
+
+      <!-- Monthly Total -->
+      <tr class="monthly-total">
+        <td class="desc-col">Monthly</td>
+        <td class="num-col">{{ANNUAL_CTC}}</td>
+        <td class="num-col">{{MONTHLY_CTC}}</td>
+        <td class="num-col"></td>
+        <td class="num-col"></td>
+        <td class="remarks-col"></td>
+      </tr>
+
+      <!-- Travel Reimbursements -->
+      <tr class="travel-row">
+        <td class="desc-col">% Change</td>
+        <td class="num-col travel-label">Travel Reimbursements</td>
+        <td class="num-col"></td>
+        <td class="num-col"></td>
+        <td class="num-col"></td>
+        <td class="remarks-col">{{TRAVEL_REMARKS}}</td>
+      </tr>
+
+      <!-- Bank Transfer -->
+      <tr class="bank-row">
+        <td class="desc-col"></td>
+        <td class="num-col bank-label">Bank Trf</td>
+        <td class="num-col"></td>
+        <td class="num-col bank-amount">{{BANK_TRANSFER}}</td>
+        <td class="num-col"></td>
+        <td class="remarks-col"></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <!-- Footer Notes -->
+  <div class="footer">
+    <p class="milestone">{{MILESTONE_NOTE}}</p>
+    <p>* QPR is Paid out Quarterly</p>
+    <p>** Full course work cost of intern under PAI, New York Program over 12-18 months.</p>
+    <p class="italic">*** Studio travel claim approved for staff for any day with inter studio travel/ 2nd studio visit for day/ visit to external location for workshops etc</p>
+    <p>Allowed to claim distance travelled for 2nd visit to studio at Rs 8/km travelled up & down from Home</p>
+    <p>Allowed to claim distance travelled for inter studio & 3rd party location travel at Rs 8/ km</p>
   </div>
 </body>
 </html>
