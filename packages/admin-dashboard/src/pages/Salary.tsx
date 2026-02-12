@@ -184,25 +184,12 @@ export default function Salary() {
       await fetchStatements();
 
       // Show success message with count
-      const count = result?.data?.drafts?.length || statements.filter(s => !s.gmailDraftId).length;
+      const count = result.draftsCreated || statements.filter(s => !s.gmailDraftId).length;
       setSuccess(`Successfully created ${count} Gmail draft${count !== 1 ? 's' : ''} for salary statements.`);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'Failed to create drafts');
     } finally {
       setCreatingDrafts(false);
-    }
-  };
-
-  const markAllSent = async () => {
-    const drafts = statements.filter((s) => s.status === 'draft');
-    setGenerating(true);
-    try {
-      await Promise.all(drafts.map((s) => salaryService.updateStatus(s._id!, 'sent')));
-      await fetchStatements();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to update');
-    } finally {
-      setGenerating(false);
     }
   };
 
