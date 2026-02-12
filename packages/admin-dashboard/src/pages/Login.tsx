@@ -1,7 +1,33 @@
-import { useState, FormEvent } from 'react';
+import { useState, FormEvent, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthStore } from '../store/authStore';
 import { useThemeStore } from '../store/themeStore';
+import { authService } from '../api/authService';
+
+// Declare Google Identity Services types
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: {
+            client_id: string;
+            callback: (response: { credential: string }) => void;
+          }) => void;
+          renderButton: (
+            parent: HTMLElement,
+            options: {
+              theme?: 'outline' | 'filled_blue' | 'filled_black';
+              size?: 'large' | 'medium' | 'small';
+              text?: 'signin_with' | 'signup_with' | 'continue_with' | 'signin';
+              width?: number;
+            }
+          ) => void;
+        };
+      };
+    };
+  }
+}
 
 function SunIcon() {
   return (
@@ -32,9 +58,65 @@ export default function Login() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [googleEnabled, setGoogleEnabled] = useState(false);
   const login = useAuthStore((s) => s.login);
+  const googleLogin = useAuthStore((s) => s.googleLogin);
   const navigate = useNavigate();
   const { theme, toggleTheme } = useThemeStore();
+  const googleButtonRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    // Check if Google OAuth is enabled
+    authService.getGoogleConfig().then((config) => {
+      if (config.enabled && config.clientId) {
+        setGoogleEnabled(true);
+        initializeGoogleSignIn(config.clientId);
+      }
+    }).catch(() => {
+      // Google OAuth not configured, continue with email/password only
+      setGoogleEnabled(false);
+    });
+  }, []);
+
+  const initializeGoogleSignIn = (clientId: string) => {
+    // Wait for Google script to load
+    const checkGoogle = setInterval(() => {
+      if (window.google && googleButtonRef.current) {
+        clearInterval(checkGoogle);
+
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleResponse,
+        });
+
+        window.google.accounts.id.renderButton(
+          googleButtonRef.current,
+          {
+            theme: theme === 'light' ? 'outline' : 'filled_blue',
+            size: 'large',
+            text: 'signin_with',
+            width: 320,
+          }
+        );
+      }
+    }, 100);
+
+    // Cleanup after 10 seconds if Google doesn't load
+    setTimeout(() => clearInterval(checkGoogle), 10000);
+  };
+
+  const handleGoogleResponse = async (response: { credential: string }) => {
+    setError(null);
+    setLoading(true);
+    try {
+      await googleLogin(response.credential);
+      navigate('/dashboard');
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : 'Google login failed.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
@@ -78,6 +160,18 @@ export default function Login() {
 
         {/* Error */}
         {error && <div className="alert alert-error">{error}</div>}
+
+        {/* Google Sign-In Button */}
+        {googleEnabled && (
+          <>
+            <div ref={googleButtonRef} style={{ display: 'flex', justifyContent: 'center', marginBottom: '24px' }}></div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '24px' }}>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-primary)' }}></div>
+              <span style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>or</span>
+              <div style={{ flex: 1, height: '1px', background: 'var(--border-primary)' }}></div>
+            </div>
+          </>
+        )}
 
         {/* Form */}
         <form onSubmit={handleSubmit}>

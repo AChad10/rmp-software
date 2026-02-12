@@ -12,8 +12,18 @@ export interface LoginResponse {
     userId: string;
     email: string;
     name: string;
+    picture?: string;
     role: 'admin' | 'trainer';
   };
+}
+
+export interface GoogleLoginRequest {
+  credential: string;
+}
+
+export interface GoogleConfigResponse {
+  clientId: string | null;
+  enabled: boolean;
 }
 
 export const authService = {
@@ -24,6 +34,27 @@ export const authService = {
     );
     if (!response.data.success || !response.data.data) {
       throw new Error(response.data.error || 'Login failed');
+    }
+    return response.data.data;
+  },
+
+  async googleLogin(credential: string): Promise<LoginResponse> {
+    const response = await apiClient.post<ApiResponse<LoginResponse>>(
+      '/auth/google',
+      { credential }
+    );
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Google login failed');
+    }
+    return response.data.data;
+  },
+
+  async getGoogleConfig(): Promise<GoogleConfigResponse> {
+    const response = await apiClient.get<ApiResponse<GoogleConfigResponse>>(
+      '/auth/google/config'
+    );
+    if (!response.data.success || !response.data.data) {
+      throw new Error('Failed to get Google config');
     }
     return response.data.data;
   },
