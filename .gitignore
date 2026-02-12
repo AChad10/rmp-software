@@ -1,8 +1,10 @@
 # Environment
 .env
 .env.local
-.env.production
 packages/backend/.env
+packages/backend/.env.production
+
+# Frontend .env.production files are safe to commit (only contain API URLs)
 
 # Credentials / secrets
 packages/backend/credentials/
@@ -35,3 +37,8 @@ Thumbs.db
 # Temporary
 .tmp/
 temp/
+
+# Documentation (keep local only)
+*.md
+!packages/*/README.md
+*.pem
