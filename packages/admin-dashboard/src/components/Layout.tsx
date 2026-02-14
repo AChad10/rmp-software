@@ -108,7 +108,7 @@ export default function Layout() {
       {/* Sidebar */}
       <aside className="sidebar">
         <div className="sidebar-brand">
-          <h1>Red Mat Pilates</h1>
+          <h1>RedMat Pilates</h1>
           <p>Payroll Admin</p>
         </div>
 

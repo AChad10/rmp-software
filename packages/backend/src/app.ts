@@ -152,6 +152,16 @@ process.on('uncaughtException', (err) => {
   process.exit(1);
 });
 
+// Same issue surfaces as unhandled promise rejection under PM2
+process.on('unhandledRejection', (reason: any) => {
+  if (reason?.message?.includes('Unhandled event') && reason?.stack?.includes('finity')) {
+    console.warn('[WARN] Slack Socket Mode disconnect (non-fatal):', reason.message);
+    return;
+  }
+  console.error('[FATAL] Unhandled rejection:', reason);
+  process.exit(1);
+});
+
 // Start both Slack and Express
 async function start(): Promise<void> {
   validateConfig();

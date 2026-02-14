@@ -245,7 +245,7 @@ export default function BSCForm() {
     <div className="container">
       <div className="form-card">
         <header className="form-header">
-          <img src="/logo.png" alt="Red Mat Pilates" className="logo" onError={(e) => {
+          <img src="/logo.png" alt="RedMat Pilates" className="logo" onError={(e) => {
             (e.target as HTMLImageElement).style.display = 'none';
           }} />
           <h1>Quarterly Self-Assessment</h1>

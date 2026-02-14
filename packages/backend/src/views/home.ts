@@ -57,7 +57,7 @@ export async function buildHomeView({ userName, userId }: BuildHomeViewParams): 
         type: 'header',
         text: {
           type: 'plain_text',
-          text: 'Red Mat Pilates',
+          text: 'RedMat Pilates',
         },
       },
       {
@@ -213,7 +213,7 @@ export async function buildHomeView({ userName, userId }: BuildHomeViewParams): 
         elements: [
           {
             type: 'mrkdwn',
-            text: 'Red Mat Pilates  |  Contact business@redmatpilates.com for support',
+            text: 'RedMat Pilates  |  Contact business@redmatpilates.com for support',
           },
         ],
       },

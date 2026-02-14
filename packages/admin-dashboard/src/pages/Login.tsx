@@ -154,7 +154,7 @@ export default function Login() {
               <path d="M2 12l10 5 10-5" />
             </svg>
           </div>
-          <h1 className="login-title">Red Mat Pilates</h1>
+          <h1 className="login-title">RedMat Pilates</h1>
           <p className="login-subtitle">Payroll Admin Dashboard</p>
         </div>
 
@@ -180,7 +180,7 @@ export default function Login() {
             <input
               type="email"
               className="input"
-              placeholder="arnav@redmat.com"
+              placeholder="xyz@redmatpilates.com"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               required

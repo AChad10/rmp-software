@@ -51,7 +51,7 @@ function Home() {
           fontWeight: '600',
           letterSpacing: '-0.5px',
         }}>
-          Red Mat Pilates
+          RedMat Pilates
         </h1>
         <p style={{
           color: '#116dff',
@@ -64,7 +64,7 @@ function Home() {
           BSC Self-Assessment Portal
         </p>
         <p style={{ color: '#6b7280', lineHeight: '1.6', marginBottom: '28px', fontSize: '15px' }}>
-          This is the Balanced Score Card self-assessment portal for Red Mat Pilates trainers.
+          This is the Balanced Score Card self-assessment portal for RedMat Pilates trainers.
         </p>
         <div style={{
           background: '#f9fafb',

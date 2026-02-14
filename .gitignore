@@ -3,7 +3,7 @@
 .env.local
 packages/backend/.env
 packages/backend/.env.production
-
+instructions/
 # Frontend .env.production files are safe to commit (only contain API URLs)
 
 # Credentials / secrets
