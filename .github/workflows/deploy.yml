@@ -19,32 +19,38 @@ jobs:
           script: |
             set -e
 
-            echo "🚀 Starting deployment..."
+            echo "Starting deployment..."
 
             # Navigate to app directory
             cd /var/www/rmp-software
 
             # Pull latest changes
-            echo "📥 Pulling latest code from main branch..."
+            echo "Pulling latest code from main branch..."
             git fetch origin
             git reset --hard origin/main
 
             # Install dependencies
-            echo "📦 Installing dependencies..."
+            echo "Installing dependencies..."
             npm install
 
-            # Build all packages
-            echo "🔨 Building packages..."
-            npm run build:all
+            # Build packages individually to avoid OOM on low-RAM instances
+            echo "Building backend..."
+            NODE_OPTIONS="--max-old-space-size=512" npm run build:backend
+
+            echo "Building admin dashboard..."
+            NODE_OPTIONS="--max-old-space-size=512" npm run build:admin
+
+            echo "Building BSC form..."
+            NODE_OPTIONS="--max-old-space-size=512" npm run build:bsc
 
             # Restart backend with PM2
-            echo "🔄 Restarting backend..."
+            echo "Restarting backend..."
             pm2 restart rmp-backend || pm2 start packages/backend/dist/app.js --name rmp-backend
 
             # Reload nginx to serve updated static files
-            echo "🔄 Reloading nginx..."
+            echo "Reloading nginx..."
             sudo systemctl reload nginx
 
-            echo "✅ Deployment complete!"
-            echo "📊 PM2 Status:"
+            echo "Deployment complete!"
+            echo "PM2 Status:"
             pm2 status
