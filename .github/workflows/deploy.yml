@@ -35,13 +35,13 @@ jobs:
 
             # Build packages individually to avoid OOM on low-RAM instances
             echo "Building backend..."
-            NODE_OPTIONS="--max-old-space-size=512" npm run build:backend
+            NODE_OPTIONS="--max-old-space-size=1536" npm run build:backend
 
             echo "Building admin dashboard..."
-            NODE_OPTIONS="--max-old-space-size=512" npm run build:admin
+            NODE_OPTIONS="--max-old-space-size=1536" npm run build:admin
 
             echo "Building BSC form..."
-            NODE_OPTIONS="--max-old-space-size=512" npm run build:bsc
+            NODE_OPTIONS="--max-old-space-size=1536" npm run build:bsc
 
             # Restart backend with PM2
             echo "Restarting backend..."
