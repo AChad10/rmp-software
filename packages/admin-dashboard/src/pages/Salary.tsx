@@ -328,9 +328,16 @@ export default function Salary() {
                       <td><Badge status={s.status} /></td>
                       <td style={{ textAlign: 'right' }}>
                         {s.pdfUrl && (
-                          <a href={s.pdfUrl} target="_blank" rel="noopener noreferrer" className="btn btn-secondary btn-sm">
+                          <button
+                            className="btn btn-secondary btn-sm"
+                            onClick={() => {
+                              const token = localStorage.getItem('auth_token');
+                              const apiBase = import.meta.env.VITE_API_URL || 'http://localhost:3000/api';
+                              window.open(`${apiBase}/salary/statements/${s._id}/pdf?token=${token}`, '_blank');
+                            }}
+                          >
                             PDF
-                          </a>
+                          </button>
                         )}
                       </td>
                     </tr>

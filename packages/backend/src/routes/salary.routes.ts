@@ -4,7 +4,8 @@ import {
   getSalaryStatements,
   getSalaryStatementById,
   updateStatementStatus,
-  createGmailDrafts
+  createGmailDrafts,
+  downloadStatementPdf
 } from '../controllers/salary.controller';
 import { authenticateToken, requireAdmin } from '../middleware/auth.middleware';
 
@@ -21,6 +22,9 @@ router.get('/statements', authenticateToken, requireAdmin, getSalaryStatements);
 
 // Get single salary statement (admin only)
 router.get('/statements/:id', authenticateToken, requireAdmin, getSalaryStatementById);
+
+// Download/preview salary statement PDF (admin only)
+router.get('/statements/:id/pdf', authenticateToken, requireAdmin, downloadStatementPdf);
 
 // Update statement status (admin only)
 router.put('/statements/:id/status', authenticateToken, requireAdmin, updateStatementStatus);

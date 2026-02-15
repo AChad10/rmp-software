@@ -1,9 +1,11 @@
 import { Request, Response } from 'express';
+import fs from 'fs/promises';
 import { Trainer, SalaryStatement, AuditLog } from '../models';
 import { GenerateSalaryRequest, ApiResponse } from '@rmp/shared-types';
 import { calculateSalary, generateAllSalaries, salaryStatementExists, getBonusQuarter } from '../services/salary.service';
 import {
   generateSalaryPDF,
+  pdfExists,
   SalaryPDFData,
   getDaysInMonth,
   getFinancialYear,
@@ -467,5 +469,37 @@ export async function createGmailDrafts(req: Request, res: Response): Promise<vo
       error: 'Failed to create Gmail drafts',
       ...(process.env.NODE_ENV === 'development' && { message: error.message })
     } as ApiResponse);
+  }
+}
+
+/**
+ * Download/preview salary statement PDF
+ * GET /api/salary/statements/:id/pdf
+ */
+export async function downloadStatementPdf(req: Request, res: Response): Promise<void> {
+  try {
+    const { id } = req.params;
+    const statement = await SalaryStatement.findById(id);
+
+    if (!statement || !statement.pdfPath) {
+      res.status(404).json({ success: false, error: 'PDF not found' } as ApiResponse);
+      return;
+    }
+
+    const exists = await pdfExists(statement.pdfPath);
+    if (!exists) {
+      res.status(404).json({ success: false, error: 'PDF file missing from server' } as ApiResponse);
+      return;
+    }
+
+    const pdfBuffer = await fs.readFile(statement.pdfPath);
+    const filename = statement.pdfPath.split('/').pop() || 'salary-statement.pdf';
+
+    res.setHeader('Content-Type', 'application/pdf');
+    res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
+    res.send(pdfBuffer);
+  } catch (error: any) {
+    console.error('Error downloading PDF:', error);
+    res.status(500).json({ success: false, error: 'Failed to download PDF' } as ApiResponse);
   }
 }
