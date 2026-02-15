@@ -6,13 +6,21 @@ import path from 'path';
  */
 export function getLogoBase64(): string {
   try {
-    // Logo is at the root of the monorepo (../../logo.jpeg from backend/src/templates/)
-    const logoPath = path.resolve(__dirname, '../../../..', 'logo.jpeg');
-    const logoBuffer = fs.readFileSync(logoPath);
-    return logoBuffer.toString('base64');
+    // Logo is at the monorepo root. Try multiple paths to handle both
+    // dev (ts-node from src/) and production (node from dist/)
+    const candidates = [
+      path.resolve(__dirname, '../../../..', 'logo.jpeg'),  // from src/templates/
+      path.resolve(__dirname, '../../..', 'logo.jpeg'),     // from dist/templates/
+    ];
+    for (const candidate of candidates) {
+      if (fs.existsSync(candidate)) {
+        return fs.readFileSync(candidate).toString('base64');
+      }
+    }
+    console.warn('logo.jpeg not found in any expected location');
+    return '';
   } catch (error) {
-    console.warn('Failed to load logo.jpeg from:', path.resolve(__dirname, '../../../..', 'logo.jpeg'));
-    console.warn('Error:', error);
+    console.warn('Failed to load logo.jpeg:', error);
     return '';
   }
 }
