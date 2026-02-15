@@ -162,6 +162,7 @@ export async function generateSalaryPDF(data: SalaryPDFData): Promise<{
 
   const browser = await puppeteer.launch({
     headless: true,
+    executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser',
     args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu']
   });
 
