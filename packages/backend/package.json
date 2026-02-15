@@ -4,7 +4,7 @@
   "description": "Red Mat Pilates Payroll System - Backend (Slack Bot + API + Cron)",
   "main": "dist/app.js",
   "scripts": {
-    "build": "tsc",
+    "build": "tsc && cp -r src/templates dist/",
     "start": "node dist/app.js",
     "dev": "ts-node src/app.ts",
     "watch": "tsc -w"

@@ -74,6 +74,9 @@ expressApp.use(express.urlencoded({ extended: true, limit: '1mb' }));
 // Strip MongoDB operator injection ($gt, $ne, etc.) from req.body/query/params
 expressApp.use(mongoSanitize() as any);
 
+// Trust first proxy (nginx/reverse proxy) so rate limiter reads correct client IP
+expressApp.set('trust proxy', 1);
+
 // Global rate limit – 100 requests per 15 min per IP
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
