@@ -125,6 +125,47 @@ export default function Trainers() {
   const handleSave = async (e: FormEvent) => {
     e.preventDefault();
 
+    // --- Edge-case validation ---
+    const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+    if (form.panNumber && !panRegex.test(form.panNumber)) {
+      setError('PAN number must be exactly 10 characters in the format ABCDE1234F');
+      return;
+    }
+
+    if (form.phone) {
+      const digits = form.phone.replace(/\D/g, '');
+      if (digits.length !== 10) {
+        setError('Phone number must be exactly 10 digits');
+        return;
+      }
+    }
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(form.email)) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    if (!form.employeeCode.trim()) {
+      setError('Employee code is required');
+      return;
+    }
+
+    if (!form.userId.trim()) {
+      setError('Slack User ID is required');
+      return;
+    }
+
+    if (form.baseSalary < 0) {
+      setError('Base salary cannot be negative');
+      return;
+    }
+
+    if (form.quarterlyBonusAmount < 0) {
+      setError('Quarterly bonus cannot be negative');
+      return;
+    }
+
     if (['trainer', 'ops_team', 'sales_team'].includes(form.team) && !form.useDefaultScorecard) {
       const totalWeight = form.scorecardTemplate.reduce((sum, m) => sum + (m.weight || 0), 0);
       if (totalWeight !== 100) {

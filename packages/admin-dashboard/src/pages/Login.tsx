@@ -154,7 +154,7 @@ export default function Login() {
               <path d="M2 12l10 5 10-5" />
             </svg>
           </div>
-          <h1 className="login-title">RedMatPilates</h1>
+          <h1 className="login-title">RedMat Pilates</h1>
           <p className="login-subtitle">Payroll Admin Dashboard</p>
         </div>
 

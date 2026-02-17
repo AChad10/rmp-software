@@ -196,6 +196,45 @@ export async function createTrainer(req: Request, res: Response): Promise<void> 
   try {
     const trainerData: CreateTrainerRequest = req.body;
 
+    // --- Input validation ---
+    const errors: string[] = [];
+
+    if (!trainerData.name?.trim()) errors.push('Name is required');
+    if (!trainerData.userId?.trim()) errors.push('Slack User ID is required');
+    if (!trainerData.employeeCode?.trim()) errors.push('Employee code is required');
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!trainerData.email || !emailRegex.test(trainerData.email)) {
+      errors.push('A valid email address is required');
+    }
+
+    if (trainerData.panNumber) {
+      const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+      if (!panRegex.test(trainerData.panNumber.toUpperCase())) {
+        errors.push('PAN number must be 10 characters in the format ABCDE1234F');
+      }
+    }
+
+    if (trainerData.phone) {
+      const digits = trainerData.phone.replace(/\D/g, '');
+      if (digits.length !== 10) {
+        errors.push('Phone number must be exactly 10 digits');
+      }
+    }
+
+    if (trainerData.baseSalary != null && trainerData.baseSalary < 0) {
+      errors.push('Base salary cannot be negative');
+    }
+
+    if (trainerData.quarterlyBonusAmount != null && trainerData.quarterlyBonusAmount < 0) {
+      errors.push('Quarterly bonus cannot be negative');
+    }
+
+    if (errors.length > 0) {
+      res.status(400).json({ success: false, error: errors.join('; ') } as ApiResponse);
+      return;
+    }
+
     // Check if trainer with userId or email already exists
     const existingTrainer = await Trainer.findOne({
       $or: [
@@ -257,6 +296,43 @@ export async function updateTrainer(req: Request, res: Response): Promise<void> 
   try {
     const { id } = req.params;
     const updates: UpdateTrainerRequest = req.body;
+
+    // --- Input validation for updated fields ---
+    const errors: string[] = [];
+
+    if (updates.email !== undefined) {
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if (!emailRegex.test(updates.email)) {
+        errors.push('A valid email address is required');
+      }
+    }
+
+    if (updates.panNumber !== undefined && updates.panNumber) {
+      const panRegex = /^[A-Z]{5}[0-9]{4}[A-Z]$/;
+      if (!panRegex.test(updates.panNumber.toUpperCase())) {
+        errors.push('PAN number must be 10 characters in the format ABCDE1234F');
+      }
+    }
+
+    if (updates.phone !== undefined && updates.phone) {
+      const digits = updates.phone.replace(/\D/g, '');
+      if (digits.length !== 10) {
+        errors.push('Phone number must be exactly 10 digits');
+      }
+    }
+
+    if (updates.baseSalary != null && updates.baseSalary < 0) {
+      errors.push('Base salary cannot be negative');
+    }
+
+    if (updates.quarterlyBonusAmount != null && updates.quarterlyBonusAmount < 0) {
+      errors.push('Quarterly bonus cannot be negative');
+    }
+
+    if (errors.length > 0) {
+      res.status(400).json({ success: false, error: errors.join('; ') } as ApiResponse);
+      return;
+    }
 
     const trainer = await Trainer.findById(id);
 
