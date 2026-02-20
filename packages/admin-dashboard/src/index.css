@@ -1492,6 +1492,69 @@ body {
 .h-full { height: 100%; }
 .hidden { display: none; }
 
+/* ---- Tab Bar ---- */
+.tab-bar {
+  display: flex;
+  gap: 0;
+  margin-bottom: 20px;
+  border-bottom: 2px solid var(--border-primary);
+}
+
+.tab-bar .tab {
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  transition: color 0.2s, border-color 0.2s;
+  font-family: inherit;
+}
+
+.tab-bar .tab.active {
+  color: var(--brand-primary);
+  border-bottom-color: var(--brand-primary);
+}
+
+.tab-bar .tab:hover:not(.active) {
+  color: var(--text-primary);
+}
+
+/* ---- Per-Class Status Badges ---- */
+.pc-status-badge {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+.pc-status-badge.pending_logs {
+  background: var(--badge-gray-bg);
+  color: var(--badge-gray-text);
+}
+.pc-status-badge.logs_sent {
+  background: var(--badge-info-bg);
+  color: var(--badge-info-text);
+}
+.pc-status-badge.confirmed {
+  background: var(--badge-success-bg);
+  color: var(--badge-success-text);
+}
+.pc-status-badge.payout_sent {
+  background: var(--badge-warning-bg);
+  color: var(--badge-warning-text);
+}
+.pc-status-badge.paid {
+  background: var(--badge-success-bg);
+  color: var(--badge-success-text);
+  font-weight: 700;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
   .modal {

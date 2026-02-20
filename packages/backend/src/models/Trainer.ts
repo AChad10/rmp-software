@@ -13,6 +13,27 @@ const ScorecardMetricSchema = new Schema<IScorecardMetric>({
   maxScore: { type: Number, required: true, default: 10 },
 }, { _id: false });
 
+const SalaryComponentSchema = new Schema({
+  id: { type: String, required: true },
+  name: { type: String, required: true, trim: true },
+  annualAmount: { type: Number, required: true, min: 0 },
+  monthlyAmount: { type: Number, required: true, min: 0 },
+  frequency: { type: String, enum: ['Monthly', 'Quarterly', 'Annual', ''], default: '' },
+  remarks: { type: String, default: '' },
+}, { _id: false });
+
+const ClassSubTypeSchema = new Schema({
+  name: { type: String, required: true },
+  billingRate: { type: Number, required: true, min: 0 },
+}, { _id: false });
+
+const ClassTypeSchema = new Schema({
+  name: { type: String, required: true },
+  category: { type: String, enum: ['group', 'pvt', 'semi_pvt', 'discovery'], required: true },
+  billingRate: { type: Number, required: true, min: 0 },
+  subTypes: { type: [ClassSubTypeSchema], default: [] },
+}, { _id: false });
+
 // Generate a secure random token for BSC access
 function generateBscToken(): string {
   return crypto.randomBytes(32).toString('hex');
@@ -65,6 +86,34 @@ const TrainerSchema = new Schema<ITrainerDocument>({
   baseSalary: { type: Number, required: true, min: 0 },
   quarterlyBonusAmount: { type: Number, default: 0, min: 0 },
 
+  // Compensation Type
+  compensationType: {
+    type: String,
+    enum: ['standard', 'senior', 'per_class'],
+    default: 'standard',
+    required: true,
+  },
+
+  // Senior salary components
+  salaryComponents: {
+    type: {
+      fixed: { type: [SalaryComponentSchema], default: [] },
+      variable: { type: [SalaryComponentSchema], default: [] },
+    },
+    default: undefined,
+  },
+
+  // Per-class configuration
+  classConfig: {
+    type: {
+      tdsRate: { type: Number, default: 0.10, min: 0, max: 1 },
+      sheetId: { type: String },
+      sheetTab: { type: String },
+      classTypes: { type: [ClassTypeSchema], default: [] },
+    },
+    default: undefined,
+  },
+
   // Scorecard Configuration
   useDefaultScorecard: { type: Boolean, default: true },
   scorecardTemplate: { type: [ScorecardMetricSchema], default: [] },
@@ -95,6 +144,7 @@ const TrainerSchema = new Schema<ITrainerDocument>({
 // Indexes for performance
 TrainerSchema.index({ status: 1 });
 TrainerSchema.index({ name: 1 });
+TrainerSchema.index({ compensationType: 1, status: 1 });
 
 // Virtual for ID as string
 TrainerSchema.virtual('id').get(function(this: ITrainerDocument) {

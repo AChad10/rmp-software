@@ -25,6 +25,25 @@ const SalaryStatementSchema = new Schema<ISalaryStatementDocument>({
   calculatedBonus: { type: Number, required: true, min: 0 },
   totalSalary: { type: Number, required: true, min: 0 },
 
+  // Compensation type
+  compensationType: {
+    type: String,
+    enum: ['standard', 'senior', 'per_class'],
+    default: 'standard',
+  },
+
+  // Senior custom breakdown
+  customBreakdown: {
+    type: Schema.Types.Mixed,  // { fixed: [], variable: [], effectiveCompensation, tds, travelReimbursement }
+    default: undefined,
+  },
+
+  // Per-class session breakdown
+  sessionBreakdown: {
+    type: Schema.Types.Mixed,  // { classEntries: [], totalSessions, grossBilling, tds, netPayout }
+    default: undefined,
+  },
+
   // References
   bscEntryId: { type: String },
 

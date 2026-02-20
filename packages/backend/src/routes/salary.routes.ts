@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   generateSalaryStatements,
+  generateSingleStatement,
   getSalaryStatements,
   getSalaryStatementById,
   updateStatementStatus,
@@ -13,6 +14,9 @@ const router = Router();
 
 // Generate salary statements (admin only)
 router.post('/generate', authenticateToken, requireAdmin, generateSalaryStatements);
+
+// Generate a single salary statement with preview data overrides (admin only)
+router.post('/generate-single', authenticateToken, requireAdmin, generateSingleStatement);
 
 // Create Gmail drafts for statements (admin only)
 router.post('/create-drafts', authenticateToken, requireAdmin, createGmailDrafts);

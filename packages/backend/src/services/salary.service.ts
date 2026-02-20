@@ -170,14 +170,24 @@ export async function generateAllSalaries(request: GenerateSalaryRequest): Promi
   let trainers;
 
   if (trainerIds && trainerIds.length > 0) {
-    // Generate for specific trainers
+    // Generate for specific trainers (but skip per-class trainers)
     trainers = await Trainer.find({
       _id: { $in: trainerIds },
-      status: 'active'
+      status: 'active',
+      compensationType: { $ne: 'per_class' },
     });
+    // Warn about excluded per-class trainers
+    const allRequested = await Trainer.find({ _id: { $in: trainerIds }, status: 'active' });
+    const excluded = allRequested.filter((t: any) => t.compensationType === 'per_class');
+    if (excluded.length > 0) {
+      console.log(`[INFO] Skipping ${excluded.length} per-class trainer(s): ${excluded.map((t: any) => t.name).join(', ')} (use per-class workflow instead)`);
+    }
   } else {
-    // Generate for all active trainers
-    trainers = await Trainer.find({ status: 'active' });
+    // Generate for all active trainers (excluding per-class)
+    trainers = await Trainer.find({
+      status: 'active',
+      compensationType: { $ne: 'per_class' },
+    });
   }
 
   const generated: SalaryBreakdown[] = [];

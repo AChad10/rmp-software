@@ -16,6 +16,7 @@ import salaryRouter from './routes/salary.routes';
 import bscRouter from './routes/bsc.routes';
 import auditLogRouter from './routes/auditLog.routes';
 import trainerLogsRouter from './routes/trainerLogs.routes';
+import perclassRouter from './routes/perclass.routes';
 import { initializeCronJobs } from './cron';
 import path from 'path';
 
@@ -117,6 +118,7 @@ expressApp.use('/api/salary', salaryRouter);
 expressApp.use('/api/bsc', bscRouter);
 expressApp.use('/api/audit-logs', auditLogRouter);
 expressApp.use('/api/trainer-logs', trainerLogsRouter);
+expressApp.use('/api/salary/per-class', perclassRouter);
 
 // Health check endpoint
 expressApp.get('/api/health', (_req, res) => {

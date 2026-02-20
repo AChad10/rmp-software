@@ -2,7 +2,7 @@ import { useEffect, useState, FormEvent } from 'react';
 import { trainersService } from '../api/trainersService';
 import { Modal } from '../components/common/Modal';
 import { Badge } from '../components/common/Badge';
-import type { ITrainer, IScorecardMetric, TeamType, ExperienceLevel } from '@rmp/shared-types';
+import type { ITrainer, IScorecardMetric, IClassType, IClassSubType, TeamType, ExperienceLevel, CompensationType } from '@rmp/shared-types';
 import { DEFAULT_TRAINER_SCORECARD } from '@rmp/shared-types';
 
 const TEAM_LABELS: Record<TeamType, string> = {
@@ -44,6 +44,9 @@ const blankTrainer = (): Omit<ITrainer, '_id' | 'createdAt' | 'updatedAt'> => ({
   customTeam: '',
   experienceLevel: 'junior' as ExperienceLevel,
   designation: '',
+  compensationType: 'standard' as CompensationType,
+  salaryComponents: undefined,
+  classConfig: undefined,
   baseSalary: 0,
   annualCTC: 0,
   quarterlyBonusAmount: 0,
@@ -109,6 +112,9 @@ export default function Trainers() {
       customTeam: trainer.customTeam || '',
       experienceLevel: trainer.experienceLevel || 'junior',
       designation: trainer.designation || '',
+      compensationType: trainer.compensationType || 'standard',
+      salaryComponents: trainer.salaryComponents || undefined,
+      classConfig: trainer.classConfig || undefined,
       baseSalary: trainer.baseSalary,
       annualCTC: trainer.annualCTC || 0,
       quarterlyBonusAmount: trainer.quarterlyBonusAmount,
@@ -234,6 +240,139 @@ export default function Trainers() {
       ...prev,
       scorecardTemplate: prev.scorecardTemplate.filter((_, i) => i !== idx),
     }));
+  };
+
+  const addSalaryComponent = (category: 'fixed' | 'variable') => {
+    setForm((prev) => {
+      const components = prev.salaryComponents || { fixed: [], variable: [] };
+      return {
+        ...prev,
+        salaryComponents: {
+          ...components,
+          [category]: [...components[category], {
+            id: crypto.randomUUID(),
+            name: '',
+            annualAmount: 0,
+            monthlyAmount: 0,
+            frequency: 'Monthly' as const,
+            remarks: '',
+          }],
+        },
+      };
+    });
+  };
+
+  const updateSalaryComponent = (category: 'fixed' | 'variable', idx: number, field: string, value: any) => {
+    setForm((prev) => {
+      const components = prev.salaryComponents || { fixed: [], variable: [] };
+      const updated = [...components[category]];
+      (updated[idx] as any)[field] = value;
+      return { ...prev, salaryComponents: { ...components, [category]: updated } };
+    });
+  };
+
+  const removeSalaryComponent = (category: 'fixed' | 'variable', idx: number) => {
+    setForm((prev) => {
+      const components = prev.salaryComponents || { fixed: [], variable: [] };
+      return {
+        ...prev,
+        salaryComponents: {
+          ...components,
+          [category]: components[category].filter((_, i) => i !== idx),
+        },
+      };
+    });
+  };
+
+  // Per-class class type helpers
+  const addClassType = () => {
+    setForm((prev) => {
+      const config = prev.classConfig || { tdsRate: 0.10, sheetId: '', sheetTab: '', classTypes: [] };
+      return {
+        ...prev,
+        classConfig: {
+          ...config,
+          classTypes: [...config.classTypes, { name: '', category: 'group' as const, billingRate: 0 }],
+        },
+      };
+    });
+  };
+
+  const updateClassType = (idx: number, field: string, value: any) => {
+    setForm((prev) => {
+      const config = prev.classConfig || { tdsRate: 0.10, sheetId: '', sheetTab: '', classTypes: [] };
+      const updated = [...config.classTypes];
+      (updated[idx] as any)[field] = value;
+      return { ...prev, classConfig: { ...config, classTypes: updated } };
+    });
+  };
+
+  const removeClassType = (idx: number) => {
+    setForm((prev) => {
+      const config = prev.classConfig || { tdsRate: 0.10, sheetId: '', sheetTab: '', classTypes: [] };
+      return {
+        ...prev,
+        classConfig: {
+          ...config,
+          classTypes: config.classTypes.filter((_, i) => i !== idx),
+        },
+      };
+    });
+  };
+
+  const addSubType = (classIdx: number) => {
+    setForm((prev) => {
+      const config = prev.classConfig || { tdsRate: 0.10, sheetId: '', sheetTab: '', classTypes: [] };
+      const updated = [...config.classTypes];
+      const ct = { ...updated[classIdx] };
+      ct.subTypes = [...(ct.subTypes || []), { name: '', billingRate: 0 }];
+      updated[classIdx] = ct;
+      return { ...prev, classConfig: { ...config, classTypes: updated } };
+    });
+  };
+
+  const updateSubType = (classIdx: number, subIdx: number, field: keyof IClassSubType, value: any) => {
+    setForm((prev) => {
+      const config = prev.classConfig || { tdsRate: 0.10, sheetId: '', sheetTab: '', classTypes: [] };
+      const updated = [...config.classTypes];
+      const ct = { ...updated[classIdx] };
+      const subs = [...(ct.subTypes || [])];
+      (subs[subIdx] as any)[field] = value;
+      ct.subTypes = subs;
+      updated[classIdx] = ct;
+      return { ...prev, classConfig: { ...config, classTypes: updated } };
+    });
+  };
+
+  const removeSubType = (classIdx: number, subIdx: number) => {
+    setForm((prev) => {
+      const config = prev.classConfig || { tdsRate: 0.10, sheetId: '', sheetTab: '', classTypes: [] };
+      const updated = [...config.classTypes];
+      const ct = { ...updated[classIdx] };
+      ct.subTypes = (ct.subTypes || []).filter((_, i) => i !== subIdx);
+      updated[classIdx] = ct;
+      return { ...prev, classConfig: { ...config, classTypes: updated } };
+    });
+  };
+
+  const useDefaultClassTypes = () => {
+    const defaults: IClassType[] = [
+      { name: 'XPRESS', category: 'group', billingRate: 760 },
+      { name: 'MAT', category: 'group', billingRate: 1150 },
+      { name: 'BARRE', category: 'group', billingRate: 1150 },
+      { name: 'REFORMER', category: 'group', billingRate: 1150 },
+      { name: 'SEMI PRIVATE', category: 'semi_pvt', billingRate: 1450 },
+      { name: 'PRIVATE', category: 'pvt', billingRate: 0, subTypes: [
+        { name: 'MVP', billingRate: 1000 },
+        { name: 'QVP', billingRate: 900 },
+        { name: 'PBC', billingRate: 1100 },
+      ]},
+      { name: 'DISCOVERY', category: 'discovery', billingRate: 750 },
+    ];
+    setForm((prev) => {
+      const config = prev.classConfig || { tdsRate: 0.10, sheetId: '', sheetTab: '', classTypes: [] };
+      return { ...prev, classConfig: { ...config, classTypes: defaults } };
+    });
   };
 
   if (loading) {
@@ -402,33 +541,239 @@ export default function Trainers() {
               </div>
             )}
             <div className="form-group">
-              <label className="form-label">Base Salary (INR) *</label>
-              <input
-                className="input"
-                type="text"
-                inputMode="numeric"
-                required
-                value={form.baseSalary || ''}
+              <label className="form-label">Compensation Type</label>
+              <select
+                className="select"
+                value={form.compensationType || 'standard'}
                 onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, '');
-                  setForm((p) => ({ ...p, baseSalary: digits ? Number(digits) : 0 }));
+                  const ct = e.target.value as CompensationType;
+                  setForm((p) => ({
+                    ...p,
+                    compensationType: ct,
+                    salaryComponents: ct === 'senior' ? (p.salaryComponents || { fixed: [], variable: [] }) : undefined,
+                    classConfig: ct === 'per_class' ? (p.classConfig || { tdsRate: 0.10, sheetId: '', sheetTab: '', classTypes: [] }) : undefined,
+                  }));
                 }}
-              />
+              >
+                <option value="standard">Standard (Fixed + BSC Bonus)</option>
+                <option value="senior">Senior / Custom Components</option>
+                <option value="per_class">Per Class (Session-Based)</option>
+              </select>
             </div>
-            <div className="form-group">
-              <label className="form-label">Quarterly Bonus (INR)</label>
-              <input
-                className="input"
-                type="text"
-                inputMode="numeric"
-                value={form.quarterlyBonusAmount || ''}
-                onChange={(e) => {
-                  const digits = e.target.value.replace(/\D/g, '');
-                  setForm((p) => ({ ...p, quarterlyBonusAmount: digits ? Number(digits) : 0 }));
-                }}
-              />
-            </div>
+            {form.compensationType !== 'per_class' && (
+              <>
+                <div className="form-group">
+                  <label className="form-label">Base Salary (INR) *</label>
+                  <input
+                    className="input"
+                    type="text"
+                    inputMode="numeric"
+                    required
+                    value={form.baseSalary || ''}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '');
+                      setForm((p) => ({ ...p, baseSalary: digits ? Number(digits) : 0 }));
+                    }}
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Quarterly Bonus (INR)</label>
+                  <input
+                    className="input"
+                    type="text"
+                    inputMode="numeric"
+                    value={form.quarterlyBonusAmount || ''}
+                    onChange={(e) => {
+                      const digits = e.target.value.replace(/\D/g, '');
+                      setForm((p) => ({ ...p, quarterlyBonusAmount: digits ? Number(digits) : 0 }));
+                    }}
+                  />
+                </div>
+              </>
+            )}
           </div>
+
+          {form.compensationType === 'senior' && form.salaryComponents && (
+            <div style={{ marginTop: '16px' }}>
+              <h4 style={{ color: 'var(--text-primary)', marginBottom: '12px' }}>Fixed Compensation Components</h4>
+              {form.salaryComponents.fixed.map((c, i) => (
+                <div key={c.id} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'flex-end' }}>
+                  <div style={{ flex: 2 }}>
+                    <input className="input" placeholder="Component name (e.g. Basic Salary)" value={c.name}
+                      onChange={(e) => updateSalaryComponent('fixed', i, 'name', e.target.value)} />
+                  </div>
+                  <div style={{ width: '100px' }}>
+                    <input className="input" type="number" placeholder="Annual" value={c.annualAmount || ''}
+                      onChange={(e) => updateSalaryComponent('fixed', i, 'annualAmount', Number(e.target.value))} />
+                  </div>
+                  <div style={{ width: '100px' }}>
+                    <input className="input" type="number" placeholder="Monthly" value={c.monthlyAmount || ''}
+                      onChange={(e) => updateSalaryComponent('fixed', i, 'monthlyAmount', Number(e.target.value))} />
+                  </div>
+                  <div style={{ width: '100px' }}>
+                    <select className="select" value={c.frequency}
+                      onChange={(e) => updateSalaryComponent('fixed', i, 'frequency', e.target.value)}>
+                      <option value="Monthly">Monthly</option>
+                      <option value="Quarterly">Quarterly</option>
+                      <option value="Annual">Annual</option>
+                    </select>
+                  </div>
+                  <button type="button" className="btn btn-danger btn-sm"
+                    onClick={() => removeSalaryComponent('fixed', i)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => addSalaryComponent('fixed')}>+ Add Fixed Component</button>
+
+              <h4 style={{ color: 'var(--text-primary)', marginTop: '16px', marginBottom: '12px' }}>Variable Compensation Components</h4>
+              {form.salaryComponents.variable.map((c, i) => (
+                <div key={c.id} style={{ display: 'flex', gap: '8px', marginBottom: '8px', alignItems: 'flex-end' }}>
+                  <div style={{ flex: 2 }}>
+                    <input className="input" placeholder="Component name (e.g. QPR)" value={c.name}
+                      onChange={(e) => updateSalaryComponent('variable', i, 'name', e.target.value)} />
+                  </div>
+                  <div style={{ width: '100px' }}>
+                    <input className="input" type="number" placeholder="Annual" value={c.annualAmount || ''}
+                      onChange={(e) => updateSalaryComponent('variable', i, 'annualAmount', Number(e.target.value))} />
+                  </div>
+                  <div style={{ width: '100px' }}>
+                    <input className="input" type="number" placeholder="Monthly" value={c.monthlyAmount || ''}
+                      onChange={(e) => updateSalaryComponent('variable', i, 'monthlyAmount', Number(e.target.value))} />
+                  </div>
+                  <div style={{ width: '100px' }}>
+                    <select className="select" value={c.frequency}
+                      onChange={(e) => updateSalaryComponent('variable', i, 'frequency', e.target.value)}>
+                      <option value="Monthly">Monthly</option>
+                      <option value="Quarterly">Quarterly</option>
+                      <option value="Annual">Annual</option>
+                    </select>
+                  </div>
+                  <button type="button" className="btn btn-danger btn-sm"
+                    onClick={() => removeSalaryComponent('variable', i)}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                    </svg>
+                  </button>
+                </div>
+              ))}
+              <button type="button" className="btn btn-secondary btn-sm" onClick={() => addSalaryComponent('variable')}>+ Add Variable Component</button>
+            </div>
+          )}
+
+          {form.compensationType === 'per_class' && (
+            <div style={{ marginTop: '16px' }}>
+              <h4 style={{ color: 'var(--text-primary)', marginBottom: '12px' }}>Google Sheet Configuration</h4>
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                <div className="form-group">
+                  <label className="form-label">Google Sheet ID</label>
+                  <input
+                    className="input"
+                    value={form.classConfig?.sheetId || ''}
+                    onChange={(e) => {
+                      // Extract sheet ID from URL if pasted
+                      let val = e.target.value;
+                      const match = val.match(/\/spreadsheets\/d\/([a-zA-Z0-9_-]+)/);
+                      if (match) val = match[1];
+                      setForm((p) => ({
+                        ...p,
+                        classConfig: { ...p.classConfig!, sheetId: val },
+                      }));
+                    }}
+                    placeholder="Sheet ID or full URL"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Sheet Tab Name</label>
+                  <input
+                    className="input"
+                    value={form.classConfig?.sheetTab || ''}
+                    onChange={(e) => setForm((p) => ({
+                      ...p,
+                      classConfig: { ...p.classConfig!, sheetTab: e.target.value },
+                    }))}
+                    placeholder="e.g. Trainer Name"
+                  />
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '16px', marginBottom: '12px' }}>
+                <h4 style={{ color: 'var(--text-primary)', margin: 0 }}>Class Types</h4>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={useDefaultClassTypes}>
+                    Use RedMat Defaults
+                  </button>
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={addClassType}>
+                    + Add Class Type
+                  </button>
+                </div>
+              </div>
+
+              {(form.classConfig?.classTypes || []).map((ct, i) => (
+                <div key={i} style={{ border: '1px solid var(--border-secondary)', borderRadius: '6px', padding: '12px', marginBottom: '10px', background: 'var(--bg-surface-secondary)' }}>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'flex-end' }}>
+                    <div style={{ flex: 2 }}>
+                      <label className="form-label" style={{ fontSize: '11px', marginBottom: '2px' }}>Name</label>
+                      <input className="input" placeholder="e.g. XPRESS" value={ct.name}
+                        onChange={(e) => updateClassType(i, 'name', e.target.value)} />
+                    </div>
+                    <div style={{ width: '140px' }}>
+                      <label className="form-label" style={{ fontSize: '11px', marginBottom: '2px' }}>Category</label>
+                      <select className="select" value={ct.category}
+                        onChange={(e) => updateClassType(i, 'category', e.target.value)}>
+                        <option value="group">Group</option>
+                        <option value="pvt">Private</option>
+                        <option value="semi_pvt">Semi Private</option>
+                        <option value="discovery">Discovery</option>
+                      </select>
+                    </div>
+                    <div style={{ width: '100px' }}>
+                      <label className="form-label" style={{ fontSize: '11px', marginBottom: '2px' }}>Rate (INR)</label>
+                      <input className="input" type="number" placeholder="Rate" value={ct.billingRate || ''}
+                        onChange={(e) => updateClassType(i, 'billingRate', Number(e.target.value))} />
+                    </div>
+                    <button type="button" className="btn btn-danger btn-sm" onClick={() => removeClassType(i)}
+                      style={{ marginBottom: '1px' }}>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                      </svg>
+                    </button>
+                  </div>
+
+                  {ct.category === 'pvt' && (
+                    <div style={{ marginTop: '8px', paddingLeft: '16px', borderLeft: '2px solid var(--brand-primary)' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '12px', color: 'var(--text-muted)', fontWeight: '500' }}>Sub-Types</span>
+                        <button type="button" className="btn btn-secondary btn-sm" style={{ fontSize: '11px', padding: '2px 8px' }}
+                          onClick={() => addSubType(i)}>+ Add Sub-Type</button>
+                      </div>
+                      {(ct.subTypes || []).map((st, si) => (
+                        <div key={si} style={{ display: 'flex', gap: '8px', marginBottom: '4px', alignItems: 'center' }}>
+                          <input className="input" placeholder="e.g. MVP" value={st.name} style={{ flex: 1 }}
+                            onChange={(e) => updateSubType(i, si, 'name', e.target.value)} />
+                          <input className="input" type="number" placeholder="Rate" value={st.billingRate || ''} style={{ width: '100px' }}
+                            onChange={(e) => updateSubType(i, si, 'billingRate', Number(e.target.value))} />
+                          <button type="button" className="btn btn-danger btn-sm" style={{ padding: '2px 6px' }}
+                            onClick={() => removeSubType(i, si)}>
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                            </svg>
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+              {(form.classConfig?.classTypes || []).length === 0 && (
+                <p className="empty-state" style={{ padding: '16px' }}>
+                  No class types configured. Click "Use RedMat Defaults" or "+ Add Class Type".
+                </p>
+              )}
+            </div>
+          )}
 
           {form.team === 'trainer' && (
             <div className="form-group" style={{ marginTop: '12px' }}>

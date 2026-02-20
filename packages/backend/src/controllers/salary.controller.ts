@@ -5,8 +5,11 @@ import { GenerateSalaryRequest, ApiResponse } from '@rmp/shared-types';
 import { calculateSalary, generateAllSalaries, salaryStatementExists, getBonusQuarter } from '../services/salary.service';
 import {
   generateSalaryPDF,
+  generateSeniorSalaryPDF,
+  deleteSalaryPDF,
   pdfExists,
   SalaryPDFData,
+  SeniorSalaryPDFData,
   getDaysInMonth,
   getFinancialYear,
   getPeriodString,
@@ -55,10 +58,26 @@ export async function generateSalaryStatements(req: Request, res: Response): Pro
     for (const breakdown of result.generated) {
       try {
         // Check if statement already exists
-        const exists = await salaryStatementExists(breakdown.trainerId, breakdown.month);
-        if (exists) {
-          console.log(`[SKIP] Skipping ${breakdown.trainerName} - statement already exists`);
+        const existingStatement = await SalaryStatement.findOne({
+          trainerId: breakdown.trainerId,
+          month: breakdown.month,
+        });
+        if (existingStatement && !request.overwrite) {
+          console.log(`[SKIP] Skipping ${breakdown.trainerName} - statement already exists (use overwrite to regenerate)`);
           continue;
+        }
+        if (existingStatement) {
+          // Delete old PDF file
+          try {
+            if (existingStatement.pdfPath) {
+              await deleteSalaryPDF(existingStatement.pdfPath);
+            }
+          } catch (e) {
+            console.warn(`[WARN] Could not delete old PDF for ${breakdown.trainerName}`);
+          }
+          // Delete old statement
+          await SalaryStatement.deleteOne({ _id: existingStatement._id });
+          console.log(`[OVERWRITE] Deleted existing statement for ${breakdown.trainerName}`);
         }
 
         // Get trainer for member ID
@@ -67,62 +86,122 @@ export async function generateSalaryStatements(req: Request, res: Response): Pro
           throw new Error('Trainer not found');
         }
 
-        // Build PDF data
-        const annualBase = trainer.baseSalary * 12;
-        const monthlyBonus = Math.round(trainer.quarterlyBonusAmount / 12);
+        // Determine compensation type and generate appropriate PDF
+        const compensationType = trainer.compensationType || 'standard';
         const bonusQuarter = getBonusQuarter(breakdown.month);
         const isBonusMonth = breakdown.calculatedBonus > 0;
 
-        // Determine bonus remarks
-        const hasBSC = trainer.quarterlyBonusAmount > 0;
-        let bonusRemarks: string;
-        if (!hasBSC) {
-          bonusRemarks = 'No variable component';
-        } else if (isBonusMonth) {
-          bonusRemarks = `BSC Score: ${(breakdown.bscScore * 10).toFixed(1)}/10`;
-        } else if (bonusQuarter && !isBonusMonth) {
-          bonusRemarks = `BSC awaited for ${bonusQuarter.label}`;
-        } else {
-          bonusRemarks = '*Eff 1st Oct 25, PLR follows quarterly payout cycle.';
+        let pdfPath: string;
+        let pdfUrl: string;
+        let customBreakdown: any;
+
+        if (compensationType === 'per_class') {
+          // Skip per-class trainers -- they have their own workflow
+          console.log(`[SKIP] Skipping ${breakdown.trainerName} - per_class trainer (use per-class workflow)`);
+          continue;
         }
 
-        const pdfData: SalaryPDFData = {
-          // Employee Info
-          employeeName: breakdown.trainerName,
-          designation: trainer.designation || 'Instructor',
-          employeeCode: trainer.employeeCode,
-          panNumber: trainer.panNumber || '',
+        if (compensationType === 'senior' && trainer.salaryComponents) {
+          // Senior: use custom components template
+          const fixedComponents = trainer.salaryComponents.fixed.map(c => ({
+            name: c.name,
+            annualAmount: c.annualAmount,
+            monthlyAmount: c.monthlyAmount,
+            frequency: c.frequency,
+            remarks: c.remarks,
+            currentAmount: c.monthlyAmount, // Default to monthly; admin can override in preview
+          }));
 
-          // Period Info
-          period: getPeriodString(breakdown.year, breakdown.monthNumber),
-          daysInPeriod: getDaysInMonth(breakdown.year, breakdown.monthNumber),
-          financialYear: getFinancialYear(breakdown.year, breakdown.monthNumber),
-          month: breakdown.month,
+          const variableComponents = trainer.salaryComponents.variable.map(c => ({
+            name: c.name,
+            annualAmount: c.annualAmount,
+            monthlyAmount: c.monthlyAmount,
+            frequency: c.frequency,
+            remarks: c.remarks,
+            currentAmount: isBonusMonth && c.frequency === 'Quarterly'
+              ? Math.round(c.annualAmount / 4 * (breakdown.bscScore || 0))
+              : (c.frequency === 'Monthly' ? c.monthlyAmount : 0),
+          }));
 
-          // Fixed Compensation
-          annualBase,
-          monthlyBase: trainer.baseSalary,
-          currentBase: trainer.baseSalary,
-          baseRemarks: '',
+          const totalCurrent = [...fixedComponents, ...variableComponents].reduce((s, c) => s + c.currentAmount, 0);
+          const tds = 0; // TDS configurable later
+          const bankTransfer = totalCurrent - tds;
 
-          // Variable Compensation
-          annualBonus: trainer.quarterlyBonusAmount,
-          monthlyBonus,
-          currentBonus: isBonusMonth ? String(Math.round(breakdown.calculatedBonus)) : '',
-          bonusRemarks,
+          const seniorPdfData: SeniorSalaryPDFData = {
+            employeeName: breakdown.trainerName,
+            designation: trainer.designation || 'Staff',
+            employeeCode: trainer.employeeCode,
+            panNumber: trainer.panNumber || '',
+            period: getPeriodString(breakdown.year, breakdown.monthNumber),
+            daysInPeriod: getDaysInMonth(breakdown.year, breakdown.monthNumber),
+            financialYear: getFinancialYear(breakdown.year, breakdown.monthNumber),
+            month: breakdown.month,
+            fixedComponents,
+            variableComponents,
+            tds,
+            travelReimbursement: 0,
+            bankTransfer,
+            milestoneNote: getMilestoneNote(trainer.joinDate),
+          };
 
-          // Totals
-          annualCTC: trainer.annualCTC || (annualBase + trainer.quarterlyBonusAmount),
-          monthlyCTC: trainer.baseSalary + monthlyBonus,
+          const seniorResult = await generateSeniorSalaryPDF(seniorPdfData);
+          pdfPath = seniorResult.pdfPath;
+          pdfUrl = seniorResult.pdfUrl;
 
-          // Other
-          travelRemarks: `On actuals as per policy, Claims awaited for ${getPeriodString(breakdown.year, breakdown.monthNumber)}`,
-          bankTransfer: breakdown.totalSalary,
-          milestoneNote: getMilestoneNote(trainer.joinDate)
-        };
+          // Store custom breakdown for the statement record
+          customBreakdown = {
+            fixed: fixedComponents.map(c => ({ ...c, id: '', currentRemarks: c.remarks })),
+            variable: variableComponents.map(c => ({ ...c, id: '', currentRemarks: c.remarks })),
+            effectiveCompensation: totalCurrent,
+            tds,
+            travelReimbursement: 0,
+          };
+        } else {
+          // Standard: existing logic
+          const annualBase = trainer.baseSalary * 12;
+          const monthlyBonus = Math.round(trainer.quarterlyBonusAmount / 12);
 
-        // Generate PDF
-        const { pdfPath, pdfUrl } = await generateSalaryPDF(pdfData);
+          // Determine bonus remarks
+          const hasBSC = trainer.quarterlyBonusAmount > 0;
+          let bonusRemarks: string;
+          if (!hasBSC) {
+            bonusRemarks = 'No variable component';
+          } else if (isBonusMonth) {
+            bonusRemarks = `BSC Score: ${(breakdown.bscScore * 10).toFixed(1)}/10`;
+          } else if (bonusQuarter && !isBonusMonth) {
+            bonusRemarks = `BSC awaited for ${bonusQuarter.label}`;
+          } else {
+            bonusRemarks = '*Eff 1st Oct 25, PLR follows quarterly payout cycle.';
+          }
+
+          const pdfData: SalaryPDFData = {
+            employeeName: breakdown.trainerName,
+            designation: trainer.designation || 'Instructor',
+            employeeCode: trainer.employeeCode,
+            panNumber: trainer.panNumber || '',
+            period: getPeriodString(breakdown.year, breakdown.monthNumber),
+            daysInPeriod: getDaysInMonth(breakdown.year, breakdown.monthNumber),
+            financialYear: getFinancialYear(breakdown.year, breakdown.monthNumber),
+            month: breakdown.month,
+            annualBase,
+            monthlyBase: trainer.baseSalary,
+            currentBase: trainer.baseSalary,
+            baseRemarks: '',
+            annualBonus: trainer.quarterlyBonusAmount,
+            monthlyBonus,
+            currentBonus: isBonusMonth ? String(Math.round(breakdown.calculatedBonus)) : '',
+            bonusRemarks,
+            annualCTC: trainer.annualCTC || (annualBase + trainer.quarterlyBonusAmount),
+            monthlyCTC: trainer.baseSalary + monthlyBonus,
+            travelRemarks: `On actuals as per policy, Claims awaited for ${getPeriodString(breakdown.year, breakdown.monthNumber)}`,
+            bankTransfer: breakdown.totalSalary,
+            milestoneNote: getMilestoneNote(trainer.joinDate),
+          };
+
+          const standardResult = await generateSalaryPDF(pdfData);
+          pdfPath = standardResult.pdfPath;
+          pdfUrl = standardResult.pdfUrl;
+        }
 
         // Create salary statement record
         const statement = new SalaryStatement({
@@ -131,12 +210,14 @@ export async function generateSalaryStatements(req: Request, res: Response): Pro
           month: breakdown.month,
           year: breakdown.year,
           monthNumber: breakdown.monthNumber,
+          compensationType,
           baseSalary: breakdown.baseSalary,
           quarterlyBonusAmount: breakdown.quarterlyBonusAmount,
           bscScore: breakdown.bscScore,
           calculatedBonus: breakdown.calculatedBonus,
           totalSalary: breakdown.totalSalary,
           bscEntryId: breakdown.bscEntryId,
+          customBreakdown,
           pdfPath,
           pdfUrl,
           status: 'draft',
@@ -501,5 +582,160 @@ export async function downloadStatementPdf(req: Request, res: Response): Promise
   } catch (error: any) {
     console.error('Error downloading PDF:', error);
     res.status(500).json({ success: false, error: 'Failed to download PDF' } as ApiResponse);
+  }
+}
+
+/**
+ * Generate a single salary statement with provided PDF data overrides
+ * POST /api/salary/generate-single
+ */
+export async function generateSingleStatement(req: Request, res: Response): Promise<void> {
+  try {
+    const { trainerId, month, pdfData, overwrite } = req.body;
+
+    if (!trainerId || !month || !pdfData) {
+      res.status(400).json({
+        success: false,
+        error: 'trainerId, month, and pdfData are required',
+      } as ApiResponse);
+      return;
+    }
+
+    const trainer = await Trainer.findById(trainerId);
+    if (!trainer) {
+      res.status(404).json({ success: false, error: 'Trainer not found' } as ApiResponse);
+      return;
+    }
+
+    // Handle existing statement
+    const existingStatement = await SalaryStatement.findOne({ trainerId, month });
+    if (existingStatement) {
+      if (!overwrite) {
+        res.status(409).json({
+          success: false,
+          error: 'Statement already exists. Set overwrite: true to regenerate.',
+        } as ApiResponse);
+        return;
+      }
+      try {
+        if (existingStatement.pdfPath) await deleteSalaryPDF(existingStatement.pdfPath);
+      } catch (_) { /* ignore missing file */ }
+      await SalaryStatement.deleteOne({ _id: existingStatement._id });
+    }
+
+    const [yearStr, monthStr] = month.split('-');
+    const year = parseInt(yearStr);
+    const monthNumber = parseInt(monthStr);
+
+    const singleCompensationType = pdfData.compensationType || trainer.compensationType || 'standard';
+    let pdfPath: string;
+    let pdfUrl: string;
+    let customBreakdown: any;
+
+    if (singleCompensationType === 'senior' && pdfData.fixedComponents) {
+      // Senior type: use senior PDF template with dynamic components
+      const seniorPdfData: SeniorSalaryPDFData = {
+        employeeName: pdfData.employeeName || trainer.name,
+        designation: pdfData.designation || trainer.designation || 'Staff',
+        employeeCode: pdfData.employeeCode || trainer.employeeCode,
+        panNumber: pdfData.panNumber || trainer.panNumber || '',
+        period: pdfData.period || getPeriodString(year, monthNumber),
+        daysInPeriod: pdfData.daysInPeriod || getDaysInMonth(year, monthNumber),
+        financialYear: pdfData.financialYear || getFinancialYear(year, monthNumber),
+        month,
+        fixedComponents: pdfData.fixedComponents,
+        variableComponents: pdfData.variableComponents || [],
+        tds: pdfData.tds || 0,
+        travelReimbursement: pdfData.travelReimbursement || 0,
+        bankTransfer: pdfData.bankTransfer,
+        milestoneNote: getMilestoneNote(trainer.joinDate),
+        customNotes: pdfData.customNotes || '',
+      };
+
+      const seniorResult = await generateSeniorSalaryPDF(seniorPdfData);
+      pdfPath = seniorResult.pdfPath;
+      pdfUrl = seniorResult.pdfUrl;
+
+      customBreakdown = {
+        fixed: pdfData.fixedComponents.map((c: any) => ({ ...c, id: c.id || '', currentRemarks: c.remarks || '' })),
+        variable: (pdfData.variableComponents || []).map((c: any) => ({ ...c, id: c.id || '', currentRemarks: c.remarks || '' })),
+        effectiveCompensation: [...pdfData.fixedComponents, ...(pdfData.variableComponents || [])].reduce((s: number, c: any) => s + (c.currentAmount || 0), 0),
+        tds: pdfData.tds || 0,
+        travelReimbursement: pdfData.travelReimbursement || 0,
+      };
+    } else {
+      // Standard type: use standard PDF template
+      const salaryPdfData: SalaryPDFData = {
+        employeeName: pdfData.employeeName || trainer.name,
+        designation: pdfData.designation || trainer.designation,
+        employeeCode: pdfData.employeeCode || trainer.employeeCode,
+        panNumber: pdfData.panNumber || trainer.panNumber || '',
+        period: pdfData.period || getPeriodString(year, monthNumber),
+        daysInPeriod: pdfData.daysInPeriod || getDaysInMonth(year, monthNumber),
+        financialYear: pdfData.financialYear || getFinancialYear(year, monthNumber),
+        month,
+        annualBase: pdfData.annualBase,
+        monthlyBase: pdfData.monthlyBase,
+        currentBase: pdfData.currentBase,
+        baseRemarks: pdfData.baseRemarks || '',
+        annualBonus: pdfData.annualBonus,
+        monthlyBonus: pdfData.monthlyBonus,
+        currentBonus: pdfData.currentBonus || '',
+        bonusRemarks: pdfData.bonusRemarks || '',
+        annualCTC: pdfData.annualCTC,
+        monthlyCTC: pdfData.monthlyCTC,
+        travelRemarks: pdfData.travelRemarks || '',
+        bankTransfer: pdfData.bankTransfer,
+        milestoneNote: getMilestoneNote(trainer.joinDate),
+      };
+
+      const standardResult = await generateSalaryPDF(salaryPdfData);
+      pdfPath = standardResult.pdfPath;
+      pdfUrl = standardResult.pdfUrl;
+    }
+
+    const statement = new SalaryStatement({
+      trainerId,
+      trainerName: trainer.name,
+      month,
+      year,
+      monthNumber,
+      compensationType: singleCompensationType,
+      baseSalary: pdfData.monthlyBase || 0,
+      quarterlyBonusAmount: pdfData.annualBonus || 0,
+      bscScore: 0,
+      calculatedBonus: parseInt(pdfData.currentBonus) || 0,
+      totalSalary: pdfData.bankTransfer,
+      customBreakdown,
+      pdfPath,
+      pdfUrl,
+      status: 'draft',
+      createdBy: req.user?.userId,
+    });
+
+    await statement.save();
+
+    await AuditLog.create({
+      userId: req.user?.userId || 'system',
+      userName: req.user?.email || 'system',
+      action: 'generate_single',
+      entity: 'salary_statement',
+      entityId: statement._id.toString(),
+      metadata: { month, trainerId, overwrite: !!overwrite },
+      timestamp: new Date(),
+    });
+
+    res.json({
+      success: true,
+      data: statement,
+      message: `Generated salary statement for ${trainer.name}`,
+    } as ApiResponse);
+  } catch (error: any) {
+    console.error('Error generating single statement:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to generate statement',
+      ...(process.env.NODE_ENV === 'development' && { message: error.message }),
+    } as ApiResponse);
   }
 }

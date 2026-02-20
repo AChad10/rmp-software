@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 20px;
+    }
+    .content {
+      background: #ffffff;
+      padding: 30px;
+      border: 1px solid #e0e0e0;
+      border-radius: 5px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 13px;
+    }
+    th {
+      background: #f5f5f5;
+      border: 1px solid #ddd;
+      padding: 8px 10px;
+      text-align: left;
+      font-weight: 600;
+      font-size: 12px;
+      text-transform: uppercase;
+      color: #555;
+    }
+    td {
+      border: 1px solid #ddd;
+      padding: 7px 10px;
+    }
+    .num {
+      text-align: right;
+    }
+    .total-row {
+      background: #f9f9f9;
+      font-weight: 600;
+    }
+    .gross-row {
+      background: #e8f5e9;
+      font-weight: 700;
+    }
+    .tds-row {
+      background: #fff3e0;
+    }
+    .net-row {
+      background: #c8e6c9;
+      font-weight: 700;
+      font-size: 14px;
+    }
+    .section-title {
+      font-weight: 600;
+      font-size: 14px;
+      margin: 20px 0 8px 0;
+      color: #333;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <div class="content">
+      <p style="margin: 0 0 15px 0; font-size: 14px;">Dear {{TRAINER_NAME}},</p>
+
+      <p style="font-size: 14px;">
+        Please find below your payment advice for <strong>{{MONTH}}</strong>.
+      </p>
+
+      <p class="section-title">Billing Breakdown</p>
+      <table>
+        <thead>
+          <tr>
+            <th>Class Type</th>
+            <th class="num">Sessions</th>
+            <th class="num">Rate (INR)</th>
+            <th class="num">Billing (INR)</th>
+          </tr>
+        </thead>
+        <tbody>
+          {{BILLING_BREAKDOWN_HTML}}
+        </tbody>
+      </table>
+
+      <table>
+        <tbody>
+          <tr class="gross-row">
+            <td>Gross Payable for Month</td>
+            <td class="num">{{GROSS_BILLING}}</td>
+          </tr>
+          <tr class="tds-row">
+            <td>TDS ({{TDS_RATE}})</td>
+            <td class="num">{{TDS_AMOUNT}}</td>
+          </tr>
+          <tr class="net-row">
+            <td>Net Payout</td>
+            <td class="num">{{NET_PAYOUT}}</td>
+          </tr>
+        </tbody>
+      </table>
+
+      <p style="font-size: 13px; color: #666; margin-top: 16px;">
+        Payment will be processed as per the standard payout schedule.
+      </p>
+
+      {{EMAIL_FOOTER}}
+    </div>
+  </div>
+</body>
+</html>

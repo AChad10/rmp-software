@@ -35,10 +35,44 @@ export interface SalaryPDFData {
   travelRemarks: string;
   bankTransfer: number;
   milestoneNote: string;
+  effectiveDateHeader?: string; // e.g., "Revised Eff 1st Oct 25"
+}
+
+export interface SeniorSalaryPDFData {
+  employeeName: string;
+  designation: string;
+  employeeCode: string;
+  panNumber: string;
+  period: string;
+  daysInPeriod: number;
+  financialYear: string;
+  month: string;
+  fixedComponents: Array<{
+    name: string;
+    annualAmount: number;
+    monthlyAmount: number;
+    frequency: string;
+    remarks: string;
+    currentAmount: number;
+  }>;
+  variableComponents: Array<{
+    name: string;
+    annualAmount: number;
+    monthlyAmount: number;
+    frequency: string;
+    remarks: string;
+    currentAmount: number;
+  }>;
+  tds: number;
+  travelReimbursement: number;
+  bankTransfer: number;
+  milestoneNote: string;
+  customNotes?: string;
 }
 
 const STORAGE_DIR = path.join(__dirname, '../../storage/salary-statements');
 const TEMPLATE_PATH = path.join(__dirname, '../templates/salaryStatement.html');
+const SENIOR_TEMPLATE_PATH = path.join(__dirname, '../templates/seniorSalaryStatement.html');
 
 /**
  * Ensure storage directory exists
@@ -150,7 +184,8 @@ export async function generateSalaryPDF(data: SalaryPDFData): Promise<{
     // Other
     .replace(/{{TRAVEL_REMARKS}}/g, data.travelRemarks || '')
     .replace(/{{BANK_TRANSFER}}/g, formatNumber(data.bankTransfer))
-    .replace(/{{MILESTONE_NOTE}}/g, data.milestoneNote || '');
+    .replace(/{{MILESTONE_NOTE}}/g, data.milestoneNote || '')
+    .replace(/{{EFFECTIVE_DATE_HEADER}}/g, data.effectiveDateHeader || '');
 
   // Generate filename: YYYY-MM-EmployeeName.pdf
   const sanitizedName = data.employeeName.replace(/[^a-zA-Z0-9]/g, '-');
@@ -197,6 +232,99 @@ export async function generateSalaryPDF(data: SalaryPDFData): Promise<{
     pdfPath,
     pdfUrl
   };
+}
+
+/**
+ * Generate senior salary PDF with dynamic components
+ */
+export async function generateSeniorSalaryPDF(data: SeniorSalaryPDFData): Promise<{
+  pdfPath: string;
+  pdfUrl: string;
+}> {
+  await ensureStorageDir();
+
+  let html = await fs.readFile(SENIOR_TEMPLATE_PATH, 'utf-8');
+
+  // Build fixed rows HTML
+  const fixedRowsHtml = data.fixedComponents.map(c => `
+    <tr>
+      <td class="desc-col">${c.name}</td>
+      <td class="num-col">${formatNumber(c.annualAmount)}</td>
+      <td class="num-col">${formatNumber(c.monthlyAmount)}</td>
+      <td class="num-col">${c.frequency}</td>
+      <td class="remarks-col">${c.remarks}</td>
+      <td class="num-col">${formatNumber(c.currentAmount)}</td>
+    </tr>
+  `).join('');
+
+  // Build variable rows HTML
+  const variableRowsHtml = data.variableComponents.map(c => `
+    <tr>
+      <td class="desc-col">${c.name}</td>
+      <td class="num-col">${formatNumber(c.annualAmount)}</td>
+      <td class="num-col">${formatNumber(c.monthlyAmount)}</td>
+      <td class="num-col">${c.frequency}</td>
+      <td class="remarks-col">${c.remarks}</td>
+      <td class="num-col">${formatNumber(c.currentAmount)}</td>
+    </tr>
+  `).join('');
+
+  // Calculate totals
+  const allComponents = [...data.fixedComponents, ...data.variableComponents];
+  const totalAnnual = allComponents.reduce((s, c) => s + c.annualAmount, 0);
+  const totalMonthly = allComponents.reduce((s, c) => s + c.monthlyAmount, 0);
+  const totalCurrent = allComponents.reduce((s, c) => s + c.currentAmount, 0);
+
+  html = html
+    .replace(/{{EMPLOYEE_NAME}}/g, data.employeeName)
+    .replace(/{{DESIGNATION}}/g, data.designation)
+    .replace(/{{EMPLOYEE_CODE}}/g, data.employeeCode)
+    .replace(/{{PAN_NUMBER}}/g, data.panNumber || '')
+    .replace(/{{PERIOD}}/g, data.period)
+    .replace(/{{DAYS_IN_PERIOD}}/g, data.daysInPeriod.toString())
+    .replace(/{{FINANCIAL_YEAR}}/g, data.financialYear)
+    .replace(/{{FIXED_ROWS}}/g, fixedRowsHtml)
+    .replace(/{{VARIABLE_ROWS}}/g, variableRowsHtml)
+    .replace(/{{TOTAL_ANNUAL}}/g, formatNumber(totalAnnual))
+    .replace(/{{TOTAL_MONTHLY}}/g, formatNumber(totalMonthly))
+    .replace(/{{TOTAL_CURRENT}}/g, formatNumber(totalCurrent))
+    .replace(/{{TDS_AMOUNT}}/g, formatNumber(data.tds))
+    .replace(/{{TRAVEL_AMOUNT}}/g, formatNumber(data.travelReimbursement))
+    .replace(/{{BANK_TRANSFER}}/g, formatNumber(data.bankTransfer))
+    .replace(/{{MILESTONE_NOTE}}/g, data.milestoneNote || '')
+    .replace(/{{CUSTOM_NOTES}}/g, data.customNotes || '');
+
+  const sanitizedName = data.employeeName.replace(/[^a-zA-Z0-9]/g, '-');
+  const filename = `${data.month}-${sanitizedName}.pdf`;
+  const pdfPath = path.join(STORAGE_DIR, filename);
+
+  console.log(`Generating senior PDF for ${data.employeeName}...`);
+
+  const browser = await puppeteer.launch({
+    headless: true,
+    executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium-browser',
+    args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-gpu'],
+  });
+
+  try {
+    const page = await browser.newPage();
+    await page.setContent(html, { waitUntil: 'domcontentloaded', timeout: 30000 });
+    await page.pdf({
+      path: pdfPath,
+      format: 'A4',
+      landscape: true,
+      printBackground: true,
+      margin: { top: '20px', right: '20px', bottom: '20px', left: '20px' },
+    });
+    console.log(`Senior PDF generated: ${filename}`);
+  } finally {
+    await browser.close();
+  }
+
+  const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
+  const pdfUrl = `${backendUrl}/pdfs/${filename}`;
+
+  return { pdfPath, pdfUrl };
 }
 
 /**

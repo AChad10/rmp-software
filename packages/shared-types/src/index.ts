@@ -27,6 +27,15 @@ export interface ITrainer {
   baseSalary: number; // Monthly base salary (e.g., 40000)
   quarterlyBonusAmount: number; // Annual bonus pool (e.g., 36000)
 
+  // Compensation Type
+  compensationType: CompensationType; // 'standard' | 'senior' | 'per_class'
+
+  // Senior/Custom salary components (only used when compensationType is 'senior')
+  salaryComponents?: ISalaryComponentsConfig;
+
+  // Per-class configuration (only used when compensationType is 'per_class')
+  classConfig?: IClassConfig;
+
   // Scorecard Configuration
   useDefaultScorecard: boolean; // If true, use DEFAULT_TRAINER_SCORECARD instead of custom template
   scorecardTemplate: IScorecardMetric[]; // Custom template (only used when useDefaultScorecard is false)
@@ -54,6 +63,62 @@ export interface IScorecardMetric {
   weight: number; // Percentage (0-100)
   minScore: number;
   maxScore: number;
+}
+
+// Compensation Types
+export type CompensationType = 'standard' | 'senior' | 'per_class';
+
+// Custom salary component (used by senior/ops staff)
+export interface ISalaryComponent {
+  id: string;              // UUID for stable reference
+  name: string;            // e.g., "Basic Salary", "HRA", "Special Allowances"
+  annualAmount: number;
+  monthlyAmount: number;
+  frequency: 'Monthly' | 'Quarterly' | 'Annual' | '';
+  remarks: string;         // Default remarks template
+}
+
+// Salary component with per-period overrides (used in statements)
+export interface ISalaryComponentEntry extends ISalaryComponent {
+  currentAmount: number;       // Amount for this specific period
+  currentRemarks: string;      // Remarks for this specific period
+}
+
+// Class type configuration (used by per-class trainers)
+export interface IClassType {
+  name: string;                // e.g., "XPRESS", "MAT", "REFORMER"
+  category: 'group' | 'pvt' | 'semi_pvt' | 'discovery';
+  billingRate: number;         // Fixed rate per session
+  subTypes?: IClassSubType[];  // For PRIVATE which has MVP/QVP/PBC
+}
+
+export interface IClassSubType {
+  name: string;        // e.g., "MVP", "QVP", "PBC"
+  billingRate: number;
+}
+
+// Per-class trainer configuration
+export interface IClassConfig {
+  tdsRate: number;            // Default 0.10 (10%)
+  sheetId: string;            // Google Sheet ID for master log
+  sheetTab: string;           // Tab name for this trainer
+  classTypes: IClassType[];
+}
+
+// Senior salary components configuration
+export interface ISalaryComponentsConfig {
+  fixed: ISalaryComponent[];
+  variable: ISalaryComponent[];
+}
+
+// Session entry in a per-class statement
+export interface ISessionEntry {
+  classType: string;
+  sessions: number;
+  noShowSessions: number;
+  billingRate: number;
+  totalBilling: number;
+  subTypeBreakdown?: { name: string; sessions: number; billingRate: number; totalBilling: number }[];
 }
 
 // BSC Entry
@@ -109,6 +174,27 @@ export interface ISalaryStatement {
   calculatedBonus: number; // quarterlyBonusAmount * bscScore (only if bonus paid this month)
   totalSalary: number; // baseSalary + calculatedBonus
 
+  // Compensation type (matches trainer at time of generation)
+  compensationType: CompensationType;
+
+  // Senior type breakdown
+  customBreakdown?: {
+    fixed: ISalaryComponentEntry[];
+    variable: ISalaryComponentEntry[];
+    effectiveCompensation: number;
+    tds: number;
+    travelReimbursement: number;
+  };
+
+  // Per-class type breakdown
+  sessionBreakdown?: {
+    classEntries: ISessionEntry[];
+    totalSessions: number;
+    grossBilling: number;
+    tds: number;
+    netPayout: number;
+  };
+
   // References
   bscEntryId?: string;
 
@@ -127,6 +213,34 @@ export interface ISalaryStatement {
   createdAt: Date;
   createdBy?: string;
   updatedAt: Date;
+}
+
+// Per-Class Statement (separate from salary statements -- tracks the 3-step email flow)
+export interface IPerClassStatement {
+  _id?: string;
+  trainerId: string;
+  trainerName: string;
+  month: string;                    // "2026-01"
+
+  // Session data
+  sessionBreakdown: ISessionEntry[];
+  totalSessions: number;
+  grossBilling: number;
+  tds: number;
+  netPayout: number;
+
+  // Confirmation workflow
+  confirmationToken: string;
+  status: 'pending_logs' | 'logs_sent' | 'confirmed' | 'payout_sent' | 'paid';
+  logsDraftId?: string;
+  logsDraftUrl?: string;
+  confirmedAt?: Date;
+  payoutDraftId?: string;
+  payoutDraftUrl?: string;
+
+  createdAt: Date;
+  updatedAt: Date;
+  createdBy?: string;
 }
 
 // Audit Log
@@ -177,6 +291,9 @@ export interface CreateTrainerRequest {
   team: TeamType;
   customTeam?: string;
   experienceLevel?: ExperienceLevel;
+  compensationType: CompensationType;
+  salaryComponents?: ISalaryComponentsConfig;
+  classConfig?: IClassConfig;
   balScoreCardUrl?: string;
   trainerLogsUrl?: string;
   paymentAdviceUrl?: string;
@@ -201,6 +318,8 @@ export interface ValidateBSCRequest {
 export interface GenerateSalaryRequest {
   month: string; // "2026-03"
   trainerIds?: string[]; // Optional - if not provided, generate for all active trainers
+  overwrite?: boolean;  // If true, regenerate even if statement exists
+  pdfOverrides?: Record<string, any>; // Allow preview edits to flow through
 }
 
 // JWT Payload

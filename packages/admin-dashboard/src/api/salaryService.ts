@@ -1,5 +1,5 @@
 import { apiClient } from './client';
-import type { ISalaryStatement, ApiResponse, GenerateSalaryRequest } from '@rmp/shared-types';
+import type { ISalaryStatement, IPerClassStatement, ApiResponse, GenerateSalaryRequest } from '@rmp/shared-types';
 
 export const salaryService = {
   async getAll(params?: { month?: string; trainerId?: string; status?: string }): Promise<ISalaryStatement[]> {
@@ -29,6 +29,22 @@ export const salaryService = {
     return response.data.data;
   },
 
+  async generateSingle(data: {
+    trainerId: string;
+    month: string;
+    pdfData: Record<string, any>;
+    overwrite?: boolean;
+  }): Promise<ISalaryStatement> {
+    const response = await apiClient.post<ApiResponse<ISalaryStatement>>(
+      '/salary/generate-single',
+      data
+    );
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to generate statement');
+    }
+    return response.data.data;
+  },
+
   async updateStatus(id: string, status: 'draft' | 'sent' | 'paid'): Promise<ISalaryStatement> {
     const response = await apiClient.put<ApiResponse<ISalaryStatement>>(
       `/salary/statements/${id}/status`,
@@ -53,5 +69,47 @@ export const salaryService = {
 
   getPdfUrl(statementId: string): string {
     return `${apiClient.defaults.baseURL?.replace('/api', '')}/pdfs/${statementId}.pdf`;
+  },
+
+  // Per-Class Trainer methods
+  async getPerClassStatements(params?: { month?: string; status?: string }): Promise<IPerClassStatement[]> {
+    const response = await apiClient.get<ApiResponse<IPerClassStatement[]>>('/salary/per-class/statements', { params });
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to fetch per-class statements');
+    }
+    return response.data.data;
+  },
+
+  async sendPerClassLogs(month: string): Promise<{ sent: number; errors: any[] }> {
+    const response = await apiClient.post<ApiResponse<{ sent: number; errors: any[] }>>(
+      '/salary/per-class/send-logs',
+      { month }
+    );
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to send log summaries');
+    }
+    return response.data.data;
+  },
+
+  async generatePerClassPayouts(month: string): Promise<{ generated: number; errors: any[] }> {
+    const response = await apiClient.post<ApiResponse<{ generated: number; errors: any[] }>>(
+      '/salary/per-class/generate-payouts',
+      { month }
+    );
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to generate payouts');
+    }
+    return response.data.data;
+  },
+
+  async updatePerClassStatus(id: string, status: string): Promise<IPerClassStatement> {
+    const response = await apiClient.put<ApiResponse<IPerClassStatement>>(
+      `/salary/per-class/statements/${id}/status`,
+      { status }
+    );
+    if (!response.data.success || !response.data.data) {
+      throw new Error(response.data.error || 'Failed to update status');
+    }
+    return response.data.data;
   },
 };

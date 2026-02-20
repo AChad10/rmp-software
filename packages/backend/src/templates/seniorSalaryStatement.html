@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Salary Statement - {{PERIOD}}</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: 'Calibri', 'Arial', sans-serif; font-size: 11px; color: #333; background: white; padding: 40px 50px; }
+    .header { display: flex; justify-content: space-between; margin-bottom: 40px; }
+    .header-left { flex: 1; }
+    .header-right { text-align: right; }
+    .header-row { display: flex; margin-bottom: 4px; }
+    .header-label { font-weight: bold; min-width: 110px; }
+    .header-value { margin-left: 10px; }
+    .header-right-label { font-weight: bold; display: inline-block; min-width: 120px; text-align: left; }
+    .header-right-value { display: inline-block; text-align: left; min-width: 60px; }
+    .header-right-row { margin-bottom: 4px; }
+    .section-title { font-weight: bold; font-size: 12px; margin-bottom: 10px; text-align: right; color: #333; }
+    table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+    th { background: #d9d9d9; border: 1px solid #999; padding: 8px 6px; text-align: center; font-weight: bold; font-size: 10px; }
+    th.left { text-align: left; }
+    td { border: 1px solid #999; padding: 6px; font-size: 11px; }
+    .desc-col { text-align: left; }
+    .num-col { text-align: center; }
+    .remarks-col { text-align: left; font-size: 10px; max-width: 220px; }
+    .section-header { background: #f2f2f2; font-weight: bold; }
+    .total-row { background: #d9d9d9; font-weight: bold; }
+    .total-row td { border-color: #999; }
+    .travel-row td { background: #fff2cc; }
+    .bank-row td { background: #e2efda; }
+    .tds-row td { background: #f9f9f9; }
+    .footer { margin-top: 30px; font-size: 10px; color: #666; line-height: 1.6; }
+    .footer p { margin-bottom: 4px; }
+    .footer .milestone { font-weight: bold; margin-bottom: 10px; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <div class="header-left">
+      <div class="header-row"><span class="header-label">Employee Name</span><span class="header-value">{{EMPLOYEE_NAME}}</span></div>
+      <div class="header-row"><span class="header-label">Designation</span><span class="header-value">{{DESIGNATION}}</span></div>
+      <div class="header-row"><span class="header-label">Employee Code</span><span class="header-value">{{EMPLOYEE_CODE}}</span></div>
+      <div class="header-row"><span class="header-label">Pan No.</span><span class="header-value">{{PAN_NUMBER}}</span></div>
+    </div>
+    <div class="header-right">
+      <div class="section-title">Current Salary</div>
+      <div class="header-right-row"><span class="header-right-label">Period*</span><span class="header-right-value">{{PERIOD}}</span></div>
+      <div class="header-right-row"><span class="header-right-label">Days in Period</span><span class="header-right-value">{{DAYS_IN_PERIOD}}</span></div>
+      <div class="header-right-row"><span class="header-right-label">Year</span><span class="header-right-value">{{FINANCIAL_YEAR}}</span></div>
+    </div>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="left" style="width: 200px;">Component</th>
+        <th style="width: 100px;">Annual CTC</th>
+        <th style="width: 100px;">Per Month</th>
+        <th style="width: 90px;">Frequency</th>
+        <th style="width: 180px;">Description</th>
+        <th style="width: 100px;">Income For<br>Salary Period*</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr class="section-header">
+        <td class="desc-col">Fixed</td>
+        <td class="num-col"></td><td class="num-col"></td><td class="num-col"></td><td class="remarks-col"></td><td class="num-col"></td>
+      </tr>
+      {{FIXED_ROWS}}
+
+      <tr class="section-header">
+        <td class="desc-col">Variable</td>
+        <td class="num-col"></td><td class="num-col"></td><td class="num-col"></td><td class="remarks-col"></td><td class="num-col"></td>
+      </tr>
+      {{VARIABLE_ROWS}}
+
+      <tr class="total-row">
+        <td class="desc-col">Effective Compensation</td>
+        <td class="num-col">{{TOTAL_ANNUAL}}</td>
+        <td class="num-col">{{TOTAL_MONTHLY}}</td>
+        <td class="num-col"></td>
+        <td class="remarks-col"></td>
+        <td class="num-col">{{TOTAL_CURRENT}}</td>
+      </tr>
+
+      <tr class="tds-row">
+        <td class="desc-col" colspan="5" style="text-align: right; font-weight: bold;">TDS</td>
+        <td class="num-col" style="font-weight: bold;">{{TDS_AMOUNT}}</td>
+      </tr>
+
+      <tr class="travel-row">
+        <td class="desc-col" style="font-weight: bold;">Travel Reimbursement</td>
+        <td class="num-col" colspan="4"></td>
+        <td class="num-col">{{TRAVEL_AMOUNT}}</td>
+      </tr>
+
+      <tr class="bank-row">
+        <td class="desc-col" style="font-weight: bold;">Net Salary Payable</td>
+        <td class="num-col" colspan="4"></td>
+        <td class="num-col" style="font-weight: bold;">{{BANK_TRANSFER}}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    <p class="milestone">{{MILESTONE_NOTE}}</p>
+    <p>* QPR is Paid out Quarterly</p>
+    {{CUSTOM_NOTES}}
+  </div>
+</body>
+</html>
