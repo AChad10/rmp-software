@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { Trainer } from '../models/Trainer';
+import { PerClassStatement } from '../models/PerClassStatement';
 import { AuditLog } from '../models/AuditLog';
 import {
   verifyServiceAccountConfig,
@@ -11,7 +12,6 @@ import type { TrainerLogsDraftResult } from '@rmp/shared-types';
 
 /**
  * Extract the spreadsheet ID from a Google Sheets URL.
- * e.g. https://docs.google.com/spreadsheets/d/ABC123/edit → ABC123
  */
 function extractSpreadsheetId(url: string): string | null {
   const match = url.match(/\/spreadsheets\/d\/([a-zA-Z0-9-_]+)/);
@@ -23,6 +23,7 @@ function extractSpreadsheetId(url: string): string | null {
  *
  * For each active trainer with a trainerLogsUrl, export the sheet as PDF
  * and create a Gmail draft addressed to the trainer.
+ * For per-class trainers, also embed a confirmation link and create a PerClassStatement.
  */
 export async function createAllDrafts(req: Request, res: Response): Promise<void> {
   try {
@@ -39,10 +40,11 @@ export async function createAllDrafts(req: Request, res: Response): Promise<void
 
     const now = new Date();
     const monthLabel = now.toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+    const month = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
 
-    // Email recipients configuration
     const foundingTrainerEmail = process.env.FOUNDING_TRAINER_EMAIL || 'foundingtrainer@redmatpilates.com';
     const opsManagerEmail = process.env.OPS_MANAGER_EMAIL || 'ops@redmatpilates.com';
+    const backendUrl = process.env.BACKEND_URL || 'http://localhost:3000';
 
     const results: TrainerLogsDraftResult[] = [];
 
@@ -69,13 +71,50 @@ export async function createAllDrafts(req: Request, res: Response): Promise<void
       }
 
       try {
+        // For per-class trainers, create/find the PerClassStatement first (need the token for the email)
+        let statement: any = null;
+        let confirmationSection = '';
+
+        if (trainer.compensationType === 'per_class') {
+          statement = await PerClassStatement.findOne({
+            trainerId: trainer._id.toString(),
+            month,
+          });
+
+          if (!statement) {
+            statement = new PerClassStatement({
+              trainerId: trainer._id.toString(),
+              trainerName: trainer.name,
+              month,
+              status: 'logs_sent',
+              createdBy: req.user?.userId,
+            });
+            await statement.save();
+          } else if (statement.status === 'logs_sent') {
+            // Re-sending, that's fine
+          } else {
+            // Already confirmed or further along, skip
+            results.push({
+              trainerId: trainer._id.toString(),
+              trainerName: trainer.name,
+              status: 'skipped',
+              error: `Statement already ${statement.status}`,
+            });
+            continue;
+          }
+
+          const confirmationUrl = `${backendUrl}/api/salary/per-class/confirm/${statement.confirmationToken}`;
+          confirmationSection = `<p style="margin: 15px 0; font-size: 14px;">Please review your logs carefully. Once reviewed, please confirm by clicking the button below:</p>
+            <p style="margin: 15px 0;"><a href="${confirmationUrl}" style="background-color: #dc2626; color: #ffffff; padding: 12px 24px; border-radius: 6px; text-decoration: none; font-weight: 600; display: inline-block;">Confirm Session Logs</a></p>`;
+        }
+
         const pdfBuffer = await exportSheetAsPdf(spreadsheetId);
         const pdfFilename = `Trainer_Logs_${trainer.name.replace(/\s+/g, '_')}_${monthLabel.replace(/\s+/g, '_')}.pdf`;
 
         const emailBody = buildEmailTemplate({
           greeting: `Dear ${trainer.name},`,
-          body: `<p style="margin: 15px 0; font-size: 14px;">Please find attached your trainer logs for the month of <strong>${monthLabel}</strong>.</p>`,
-          includeAutoMessage: true
+          body: `<p style="margin: 15px 0; font-size: 14px;">Please find attached your trainer logs for the month of <strong>${monthLabel}</strong>.</p>${confirmationSection}`,
+          includeAutoMessage: true,
         });
 
         const { draftId, draftUrl } = await createTrainerLogsDraft({
@@ -86,6 +125,13 @@ export async function createAllDrafts(req: Request, res: Response): Promise<void
           pdfBuffer,
           pdfFilename,
         });
+
+        // For per-class trainers, save the draft info on the statement
+        if (statement) {
+          statement.logsDraftId = draftId;
+          statement.logsDraftUrl = draftUrl;
+          await statement.save();
+        }
 
         results.push({
           trainerId: trainer._id.toString(),
@@ -104,7 +150,6 @@ export async function createAllDrafts(req: Request, res: Response): Promise<void
       }
     }
 
-    // Create audit log entry
     await AuditLog.create({
       userId: req.user?.userId || 'system',
       userName: req.user?.email || 'system',
