@@ -84,41 +84,15 @@ export interface ISalaryComponentEntry extends ISalaryComponent {
   currentRemarks: string;      // Remarks for this specific period
 }
 
-// Class type configuration (used by per-class trainers)
-export interface IClassType {
-  name: string;                // e.g., "XPRESS", "MAT", "REFORMER"
-  category: 'group' | 'pvt' | 'semi_pvt' | 'discovery';
-  billingRate: number;         // Fixed rate per session
-  subTypes?: IClassSubType[];  // For PRIVATE which has MVP/QVP/PBC
-}
-
-export interface IClassSubType {
-  name: string;        // e.g., "MVP", "QVP", "PBC"
-  billingRate: number;
-}
-
-// Per-class trainer configuration
+// Per-class trainer configuration (simplified)
 export interface IClassConfig {
   tdsRate: number;            // Default 0.10 (10%)
-  sheetId: string;            // Google Sheet ID for master log
-  sheetTab: string;           // Tab name for this trainer
-  classTypes: IClassType[];
 }
 
 // Senior salary components configuration
 export interface ISalaryComponentsConfig {
   fixed: ISalaryComponent[];
   variable: ISalaryComponent[];
-}
-
-// Session entry in a per-class statement
-export interface ISessionEntry {
-  classType: string;
-  sessions: number;
-  noShowSessions: number;
-  billingRate: number;
-  totalBilling: number;
-  subTypeBreakdown?: { name: string; sessions: number; billingRate: number; totalBilling: number }[];
 }
 
 // BSC Entry
@@ -186,15 +160,6 @@ export interface ISalaryStatement {
     travelReimbursement: number;
   };
 
-  // Per-class type breakdown
-  sessionBreakdown?: {
-    classEntries: ISessionEntry[];
-    totalSessions: number;
-    grossBilling: number;
-    tds: number;
-    netPayout: number;
-  };
-
   // References
   bscEntryId?: string;
 
@@ -215,23 +180,16 @@ export interface ISalaryStatement {
   updatedAt: Date;
 }
 
-// Per-Class Statement (separate from salary statements -- tracks the 3-step email flow)
+// Per-Class Statement (tracks confirmation + payment advice flow)
 export interface IPerClassStatement {
   _id?: string;
   trainerId: string;
   trainerName: string;
   month: string;                    // "2026-01"
 
-  // Session data
-  sessionBreakdown: ISessionEntry[];
-  totalSessions: number;
-  grossBilling: number;
-  tds: number;
-  netPayout: number;
-
   // Confirmation workflow
   confirmationToken: string;
-  status: 'pending_logs' | 'logs_sent' | 'confirmed' | 'payout_sent' | 'paid';
+  status: 'logs_sent' | 'confirmed' | 'payout_sent' | 'paid';
   logsDraftId?: string;
   logsDraftUrl?: string;
   confirmedAt?: Date;
