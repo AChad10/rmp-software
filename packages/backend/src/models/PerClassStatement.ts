@@ -1,4 +1,4 @@
-import mongoose, { Schema, Document } from 'mongoose';
+import mongoose, { Document } from 'mongoose';
 import crypto from 'crypto';
 import { IPerClassStatement } from '@rmp/shared-types';
 
@@ -8,51 +8,22 @@ function generateConfirmationToken(): string {
   return crypto.randomBytes(32).toString('hex');
 }
 
-const SessionEntrySchema = new Schema({
-  classType: { type: String, required: true },
-  sessions: { type: Number, required: true, min: 0 },
-  noShowSessions: { type: Number, default: 0, min: 0 },
-  billingRate: { type: Number, required: true, min: 0 },
-  totalBilling: { type: Number, required: true, min: 0 },
-  subTypeBreakdown: { type: Schema.Types.Mixed, default: undefined },
-}, { _id: false });
-
-const PerClassStatementSchema = new Schema<IPerClassStatementDocument>({
-  trainerId: { type: String, required: true, index: true },
+const PerClassStatementSchema = new mongoose.Schema({
+  trainerId: { type: String, required: true },
   trainerName: { type: String, required: true },
-  month: {
-    type: String,
-    required: true,
-    match: [/^\d{4}-\d{2}$/, 'Month must be in format YYYY-MM'],
-  },
-
-  // Session data
-  sessionBreakdown: { type: [SessionEntrySchema], required: true },
-  totalSessions: { type: Number, required: true, min: 0 },
-  grossBilling: { type: Number, required: true, min: 0 },
-  tds: { type: Number, required: true, min: 0 },
-  netPayout: { type: Number, required: true, min: 0 },
-
-  // Confirmation workflow
-  confirmationToken: {
-    type: String,
-    unique: true,
-    sparse: true,
-    default: generateConfirmationToken,
-  },
+  month: { type: String, required: true },
+  confirmationToken: { type: String, required: true, unique: true, default: generateConfirmationToken },
   status: {
     type: String,
-    enum: ['pending_logs', 'logs_sent', 'confirmed', 'payout_sent', 'paid'],
-    default: 'pending_logs',
-    index: true,
+    enum: ['logs_sent', 'confirmed', 'payout_sent', 'paid'],
+    default: 'logs_sent',
   },
-  logsDraftId: { type: String },
-  logsDraftUrl: { type: String },
-  confirmedAt: { type: Date },
-  payoutDraftId: { type: String },
-  payoutDraftUrl: { type: String },
-
-  createdBy: { type: String },
+  logsDraftId: String,
+  logsDraftUrl: String,
+  confirmedAt: Date,
+  payoutDraftId: String,
+  payoutDraftUrl: String,
+  createdBy: String,
 }, {
   timestamps: true,
   collection: 'per_class_statements',
