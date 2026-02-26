@@ -107,7 +107,6 @@ export default function Salary() {
   // Per-class state
   const [pcStatements, setPcStatements] = useState<IPerClassStatement[]>([]);
   const [pcLoading, setPcLoading] = useState(false);
-  const [sendingLogs, setSendingLogs] = useState(false);
   const [generatingPayouts, setGeneratingPayouts] = useState(false);
 
   const fetchTrainers = async () => {
@@ -367,21 +366,6 @@ export default function Salary() {
   };
 
   // Per-class handlers
-  const handleSendLogs = async () => {
-    setSendingLogs(true);
-    setError(null);
-    setSuccess(null);
-    try {
-      const result = await salaryService.sendPerClassLogs(selectedMonth);
-      setSuccess(`Sent log summaries for ${result.sent} per-class trainer${result.sent !== 1 ? 's' : ''}.`);
-      await fetchPcStatements();
-    } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : 'Failed to send log summaries');
-    } finally {
-      setSendingLogs(false);
-    }
-  };
-
   const handleGeneratePayouts = async () => {
     setGeneratingPayouts(true);
     setError(null);
@@ -413,7 +397,6 @@ export default function Salary() {
 
   // Per-class summary stats
   const pcTotalTrainers = pcStatements.length;
-  const pcTotalGross = pcStatements.reduce((s, st) => s + st.grossBilling, 0);
   const pcPendingConfirmation = pcStatements.filter(s => s.status === 'logs_sent').length;
   const pcConfirmed = pcStatements.filter(s => s.status === 'confirmed').length;
 
@@ -467,23 +450,14 @@ export default function Salary() {
             </button>
           )}
           {activeTab === 'per_class' && (
-            <>
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={handleSendLogs}
-                disabled={sendingLogs}
-              >
-                {sendingLogs ? 'Sending...' : 'Send Log Summaries'}
-              </button>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={handleGeneratePayouts}
-                disabled={generatingPayouts || pcConfirmed === 0}
-                title={pcConfirmed === 0 ? 'No confirmed statements to generate payouts for' : ''}
-              >
-                {generatingPayouts ? 'Generating...' : `Generate Payouts${pcConfirmed > 0 ? ` (${pcConfirmed})` : ''}`}
-              </button>
-            </>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleGeneratePayouts}
+              disabled={generatingPayouts || pcConfirmed === 0}
+              title={pcConfirmed === 0 ? 'No confirmed statements to generate payouts for' : ''}
+            >
+              {generatingPayouts ? 'Generating...' : `Generate Payouts${pcConfirmed > 0 ? ` (${pcConfirmed})` : ''}`}
+            </button>
           )}
         </div>
       </div>
@@ -904,94 +878,9 @@ export default function Salary() {
       {/* ===== PER-CLASS TAB ===== */}
       {activeTab === 'per_class' && (
         <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '20px' }}>
             {[
               { label: 'Total Trainers', value: pcTotalTrainers, color: 'var(--accent-indigo)' },
-              { label: 'Total Gross', value: formatCurrency(pcTotalGross), color: 'var(--accent-green)' },
-              { label: 'Pending Confirmation', value: pcPendingConfirmation, color: 'var(--accent-amber)' },
-              { label: 'Confirmed', value: pcConfirmed, color: 'var(--accent-green)' },
-            ].map((c) => (
-              <div className="card stat-card" key={c.label} style={{ borderLeftColor: c.color }}>
-                <div className="card-body">
-                  <p className="stat-card-title">{c.label}</p>
-                  <p className="stat-card-value" style={{ fontSize: '1.375rem' }}>{c.value}</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          {pcLoading ? (
-            <div className="loading-container">
-              <div className="loading-spinner" />
-              <p className="text-muted">Loading...</p>
-            </div>
-          ) : (
-            <div className="card">
-              <div className="table-container" style={{ border: 'none' }}>
-                <table className="table">
-                  <thead>
-                    <tr>
-                      <th>Trainer</th>
-                      <th style={{ textAlign: 'right' }}>Sessions</th>
-                      <th style={{ textAlign: 'right' }}>Gross Billing</th>
-                      <th style={{ textAlign: 'right' }}>TDS</th>
-                      <th style={{ textAlign: 'right' }}>Net Payout</th>
-                      <th>Status</th>
-                      <th style={{ textAlign: 'right' }}>Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {pcStatements.map((s) => (
-                      <tr key={s._id}>
-                        <td style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{s.trainerName}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-primary)' }}>{s.totalSessions}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-primary)' }}>{formatCurrency(s.grossBilling)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{formatCurrency(s.tds)}</td>
-                        <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--text-primary)' }}>{formatCurrency(s.netPayout)}</td>
-                        <td>
-                          <span className={`pc-status-badge ${s.status}`}>
-                            {PC_STATUS_LABELS[s.status] || s.status}
-                          </span>
-                        </td>
-                        <td style={{ textAlign: 'right' }}>
-                          {s.status === 'payout_sent' && (
-                            <button
-                              className="btn btn-success btn-sm"
-                              onClick={() => s._id && handlePcStatusUpdate(s._id, 'paid')}
-                            >
-                              Mark Paid
-                            </button>
-                          )}
-                          {s.logsDraftUrl && (
-                            <button
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => window.open(s.logsDraftUrl, '_blank')}
-                              style={{ marginLeft: '4px' }}
-                            >
-                              Draft
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
-                    {pcStatements.length === 0 && (
-                      <tr><td colSpan={7} className="empty-state">No per-class statements for this month.</td></tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-        </>
-      )}
-
-      {/* ===== PER-CLASS TAB ===== */}
-      {activeTab === 'per_class' && (
-        <>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px', marginBottom: '20px' }}>
-            {[
-              { label: 'Trainers', value: pcTotalTrainers, color: 'var(--accent-indigo)' },
-              { label: 'Gross Billing', value: formatCurrency(pcTotalGross), color: 'var(--accent-green)' },
               { label: 'Pending Confirmation', value: pcPendingConfirmation, color: 'var(--accent-amber)' },
               { label: 'Confirmed', value: pcConfirmed, color: 'var(--accent-green)' },
             ].map((c) => (
@@ -1016,10 +905,6 @@ export default function Salary() {
                   <thead>
                     <tr>
                       <th>Trainer</th>
-                      <th style={{ textAlign: 'center' }}>Sessions</th>
-                      <th style={{ textAlign: 'right' }}>Gross Billing</th>
-                      <th style={{ textAlign: 'right' }}>TDS</th>
-                      <th style={{ textAlign: 'right' }}>Net Payout</th>
                       <th style={{ textAlign: 'center' }}>Status</th>
                       <th style={{ textAlign: 'center' }}>Actions</th>
                     </tr>
@@ -1028,39 +913,34 @@ export default function Salary() {
                     {pcStatements.map((s) => (
                       <tr key={s._id}>
                         <td style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{s.trainerName}</td>
-                        <td style={{ textAlign: 'center', color: 'var(--text-primary)' }}>{s.totalSessions}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-primary)' }}>{formatCurrency(s.grossBilling)}</td>
-                        <td style={{ textAlign: 'right', color: 'var(--text-muted)' }}>{formatCurrency(s.tds)}</td>
-                        <td style={{ textAlign: 'right', fontWeight: '600', color: 'var(--text-primary)' }}>{formatCurrency(s.netPayout)}</td>
                         <td style={{ textAlign: 'center' }}>
                           <span className={`pc-status-badge pc-status-${s.status}`}>
                             {PC_STATUS_LABELS[s.status] || s.status}
                           </span>
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          {s.status === 'confirmed' && (
+                          {s.status === 'payout_sent' && (
                             <button
-                              className="btn btn-secondary btn-sm"
-                              onClick={() => handlePcStatusUpdate(s._id!, 'paid')}
-                              style={{ fontSize: '12px', padding: '2px 8px' }}
+                              className="btn btn-success btn-sm"
+                              onClick={() => s._id && handlePcStatusUpdate(s._id, 'paid')}
                             >
                               Mark Paid
                             </button>
                           )}
-                          {s.status === 'payout_sent' && (
+                          {s.logsDraftUrl && (
                             <button
                               className="btn btn-secondary btn-sm"
-                              onClick={() => handlePcStatusUpdate(s._id!, 'paid')}
-                              style={{ fontSize: '12px', padding: '2px 8px' }}
+                              onClick={() => window.open(s.logsDraftUrl, '_blank')}
+                              style={{ marginLeft: '4px' }}
                             >
-                              Mark Paid
+                              Draft
                             </button>
                           )}
                         </td>
                       </tr>
                     ))}
                     {pcStatements.length === 0 && (
-                      <tr><td colSpan={7} className="empty-state">No per-class statements for this month. Click "Send Log Summaries" to generate.</td></tr>
+                      <tr><td colSpan={3} className="empty-state">No per-class statements for this month.</td></tr>
                     )}
                   </tbody>
                 </table>
