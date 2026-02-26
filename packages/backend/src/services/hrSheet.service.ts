@@ -115,11 +115,11 @@ export async function exportTrainerTabAsPdf(trainerName: string): Promise<Buffer
     (s) => s.properties?.title === trainerName
   );
 
-  if (!sheet || sheet.properties?.sheetId === undefined) {
+  if (!sheet || sheet.properties?.sheetId == null) {
     throw new Error(`Sheet tab "${trainerName}" not found in HR-Confidential spreadsheet`);
   }
 
-  const gid = sheet.properties.sheetId;
+  const gid = sheet.properties.sheetId!;
 
   const drive = google.drive({ version: 'v3', auth });
 

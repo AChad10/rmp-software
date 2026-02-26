@@ -38,12 +38,6 @@ const SalaryStatementSchema = new Schema<ISalaryStatementDocument>({
     default: undefined,
   },
 
-  // Per-class session breakdown
-  sessionBreakdown: {
-    type: Schema.Types.Mixed,  // { classEntries: [], totalSessions, grossBilling, tds, netPayout }
-    default: undefined,
-  },
-
   // References
   bscEntryId: { type: String },
 
