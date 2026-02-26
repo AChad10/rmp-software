@@ -1,6 +1,5 @@
 import { Router } from 'express';
 import {
-  sendLogSummaries,
   showConfirmationPage,
   confirmSessionLogs,
   generatePayouts,
@@ -10,9 +9,6 @@ import {
 import { authenticateToken, requireAdmin } from '../middleware/auth.middleware';
 
 const router = Router();
-
-// Send log summaries to per-class trainers (admin only)
-router.post('/send-logs', authenticateToken, requireAdmin, sendLogSummaries);
 
 // Confirmation pages (PUBLIC -- no auth required)
 router.get('/confirm/:token', showConfirmationPage);
