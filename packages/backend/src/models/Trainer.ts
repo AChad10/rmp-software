@@ -22,18 +22,6 @@ const SalaryComponentSchema = new Schema({
   remarks: { type: String, default: '' },
 }, { _id: false });
 
-const ClassSubTypeSchema = new Schema({
-  name: { type: String, required: true },
-  billingRate: { type: Number, required: true, min: 0 },
-}, { _id: false });
-
-const ClassTypeSchema = new Schema({
-  name: { type: String, required: true },
-  category: { type: String, enum: ['group', 'pvt', 'semi_pvt', 'discovery'], required: true },
-  billingRate: { type: Number, required: true, min: 0 },
-  subTypes: { type: [ClassSubTypeSchema], default: [] },
-}, { _id: false });
-
 // Generate a secure random token for BSC access
 function generateBscToken(): string {
   return crypto.randomBytes(32).toString('hex');
@@ -105,13 +93,7 @@ const TrainerSchema = new Schema<ITrainerDocument>({
 
   // Per-class configuration
   classConfig: {
-    type: {
-      tdsRate: { type: Number, default: 0.10, min: 0, max: 1 },
-      sheetId: { type: String },
-      sheetTab: { type: String },
-      classTypes: { type: [ClassTypeSchema], default: [] },
-    },
-    default: undefined,
+    tdsRate: { type: Number, default: 0.10 },
   },
 
   // Scorecard Configuration
