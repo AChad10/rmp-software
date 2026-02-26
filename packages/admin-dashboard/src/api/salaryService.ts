@@ -80,17 +80,6 @@ export const salaryService = {
     return response.data.data;
   },
 
-  async sendPerClassLogs(month: string): Promise<{ sent: number; errors: any[] }> {
-    const response = await apiClient.post<ApiResponse<{ sent: number; errors: any[] }>>(
-      '/salary/per-class/send-logs',
-      { month }
-    );
-    if (!response.data.success || !response.data.data) {
-      throw new Error(response.data.error || 'Failed to send log summaries');
-    }
-    return response.data.data;
-  },
-
   async generatePerClassPayouts(month: string): Promise<{ generated: number; errors: any[] }> {
     const response = await apiClient.post<ApiResponse<{ generated: number; errors: any[] }>>(
       '/salary/per-class/generate-payouts',
